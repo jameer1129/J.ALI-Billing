@@ -309,6 +309,11 @@ body.dark-theme .pdf-loading-overlay .bar-track{background:var(--line);}
 .pdf-loading-overlay p{margin:0;font-size:13px;font-weight:600;color:#212121;}
 body.dark-theme .pdf-loading-overlay p{color:#F3F4F6;}
 
+@keyframes barSlide {
+  0% { transform: translateX(-120%); }
+  50% { transform: translateX(120%); }
+  100% { transform: translateX(120%); }
+}
 
 /* Full-screen boot loader shown before auth state is known */
 .boot-loader{position:fixed;inset:0;background:rgba(15,23,42,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:9998;display:flex;align-items:center;justify-content:center;}
