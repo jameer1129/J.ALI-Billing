@@ -1,0 +1,83 @@
+{
+  "company": {
+    "name": "J.Ali",
+    "addressLines": [
+      "Chinna Bazar, Vetapalem",
+      "Andhra Pradesh - 523187"
+    ],
+    "phone": "9700027006",
+    "email": "shaikjakeerali9@gmail.com"
+  },
+  "theme": {
+    "light": {
+      "primary": "#012587",
+      "background": "#F8F9FC",
+      "surface": "#FFFFFF",
+      "text": "#212121",
+      "border": "#E5E7EB"
+    },
+    "dark": {
+      "primary": "#012587",
+      "background": "#050505",
+      "surface": "#000000",
+      "text": "#F3F4F6",
+      "border": "#2D3748"
+    },
+    "radius": "12px"
+  },
+  "assets": {
+    "horizontalLogo": "assets/logo/horizontal-logo.png",
+    "mainLogo": "assets/logo/logo.png",
+    "watermark": "assets/logo/main-logo.png",
+    "signature": "assets/signature/signature.png",
+    "scannerQr": "assets/icons/whatsapp-qr.jpeg"
+  },
+  "display": {
+    "showWatermark": true,
+    "showQr": true,
+    "showSignature": true,
+    "showNotes": true,
+    "showTotalItems": true,
+    "showTotalQuantity": true
+  },
+  "invoice": {
+    "currencySymbol": "₹",
+    "filePrefix": "J_Ali_Invoice_",
+    "numberFormat": "MMDDHHmmss",
+    "defaultNotes": "Thank you for choosing J.Ali Electronics & Electricals.\nFor any support, feel free to contact us."
+  },
+  "signatureBlock": {
+    "forLine": "For J.Ali Electronics & Electricals",
+    "authLine": "Authorized Signature"
+  },
+  "scanner": {
+    "scannerCaption": "Scan to Connect"
+  },
+  "services": [
+    {
+      "icon": "fa-microchip",
+      "label": "Expert Diagnostics"
+    },
+    {
+      "icon": "fa-screwdriver-wrench",
+      "label": "Professional Service"
+    },
+    {
+      "icon": "fa-gauge-high",
+      "label": "Fast Turnaround"
+    },
+    {
+      "icon": "fa-indian-rupee-sign",
+      "label": "Affordable Pricing"
+    },
+    {
+      "icon": "fa-star",
+      "label": "Customer Satisfaction"
+    }
+  ],
+  "footer": {
+    "thankYouMessage": "Thank you for choosing J.Ali Electronics & Electricals!",
+    "copyrightLine": "© 2026 J.Ali Electronics & Electricals | End 2 End Solutions",
+    "appVersion": "v1.0.0"
+  }
+}
