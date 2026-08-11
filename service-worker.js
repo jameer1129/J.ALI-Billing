@@ -1,5 +1,5 @@
 
-const CACHE_NAME = "jas-tech-assets-v2.0.1";
+const CACHE_NAME = "jas-tech-assets-v2.0.0";
 
 // Only static assets
 const STATIC_ASSETS = [
