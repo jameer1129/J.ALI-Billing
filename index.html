@@ -710,6 +710,23 @@ body.dark-theme .pdf-loading-overlay p{color:#F3F4F6;}
   </div>
 </div>
 
+<!-- Restore Bill Modal -->
+<div class="modal-overlay modal--confirm hide" id="restoreBillModalOverlay">
+  <div class="modal">
+    <div class="modal__header">
+      <h3>Restore Previous Invoice?</h3>
+    </div>
+    <div class="modal__body">
+      <div class="confirm-icon" style="background:#EEF4FC;color:var(--primary);"><i class="fa-solid fa-rotate-right"></i></div>
+      <p>We found a previous invoice that you were working on. Would you like to restore it or start fresh?</p>
+    </div>
+    <div class="modal__footer">
+      <button class="btn btn--ghost" id="btnRestoreBillReset"><i class="fa-solid fa-rotate-left"></i> Start Fresh</button>
+      <button class="btn btn--primary" id="btnRestoreBillRestore"><i class="fa-solid fa-rotate-right"></i> Restore</button>
+    </div>
+  </div>
+</div>
+
 <!-- PDF Action Modal -->
 <div class="modal-overlay modal--confirm hide" id="pdfActionModalOverlay">
   <div class="modal">
@@ -826,6 +843,9 @@ function cacheElements(){
   el.btnCloseResetModal = document.getElementById('btnCloseResetModal');
   el.btnCancelReset = document.getElementById('btnCancelReset');
   el.btnConfirmReset = document.getElementById('btnConfirmReset');
+  el.restoreBillModalOverlay = document.getElementById('restoreBillModalOverlay');
+  el.btnRestoreBillRestore = document.getElementById('btnRestoreBillRestore');
+  el.btnRestoreBillReset = document.getElementById('btnRestoreBillReset');
   el.previewModalOverlay = document.getElementById('previewModalOverlay');
   el.previewModalBody = document.getElementById('previewModalBody');
   el.btnClosePreviewModal = document.getElementById('btnClosePreviewModal');
@@ -1265,6 +1285,142 @@ function syncCustomerFieldsFromState() {
 }
 
 /* ===================================================================
+   BILL AUTO-SAVE AND RESTORE FUNCTIONS
+   =================================================================== */
+
+const BILL_SAVE_KEY = 'jas_autosave_bill';
+
+function saveBillStateToLocalStorage(){
+  const billData = {
+    customer: state.customer,
+    invoiceNumber: state.invoiceNumber,
+    dateStr: state.dateStr,
+    invoiceDateValue: el.invoiceDate.value, // Save the actual date input value
+    notes: state.notes,
+    products: state.products,
+    showWatermark: state.showWatermark,
+    showQr: state.showQr,
+    showSignature: state.showSignature,
+    includeNotesOnPdf: state.includeNotesOnPdf,
+    timestamp: Date.now()
+  };
+
+  try {
+    localStorage.setItem(BILL_SAVE_KEY, JSON.stringify(billData));
+  } catch (e) {
+    console.error('Failed to save bill state:', e);
+  }
+}
+
+function getSavedBillState(){
+  try {
+    const saved = localStorage.getItem(BILL_SAVE_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch (e) {
+    console.error('Failed to get saved bill state:', e);
+    return null;
+  }
+}
+
+function clearSavedBillState(){
+  try {
+    localStorage.removeItem(BILL_SAVE_KEY);
+  } catch (e) {
+    console.error('Failed to clear saved bill state:', e);
+  }
+}
+
+function restoreBillStateFromLocalStorage(){
+  const saved = getSavedBillState();
+  if (!saved) return false;
+
+  state.customer = saved.customer || { name: '', address: '', mobile: '' };
+  state.invoiceNumber = saved.invoiceNumber || '';
+  state.dateStr = saved.dateStr || '';
+  state.notes = saved.notes || '';
+  state.products = saved.products || [];
+  state.showWatermark = saved.showWatermark !== false;
+  state.showQr = saved.showQr !== false;
+  state.showSignature = saved.showSignature !== false;
+  state.includeNotesOnPdf = saved.includeNotesOnPdf !== false;
+
+  // Recalculate nextId based on existing products
+  if (state.products.length > 0) {
+    state.nextId = Math.max(...state.products.map(p => p.id || 0)) + 1;
+  } else {
+    state.nextId = 1;
+  }
+
+  // Sync UI with restored state
+  syncCustomerFieldsFromState();
+  syncDisplayToggleState();
+  el.invoiceNotes.value = state.notes || '';
+
+  // Restore the invoice date
+  if (saved.invoiceDateValue) {
+    el.invoiceDate.value = saved.invoiceDateValue;
+    if (invoiceDatePicker) {
+      invoiceDatePicker.updateText();
+    }
+  }
+
+  renderProducts();
+  updateSummary();
+
+  return true;
+}
+
+function openRestoreBillModal(){
+  showOverlay(el.restoreBillModalOverlay);
+}
+
+function closeRestoreBillModal(){
+  hideOverlay(el.restoreBillModalOverlay);
+}
+
+function checkAndPromptForRestore(){
+  const saved = getSavedBillState();
+  if (saved) {
+    openRestoreBillModal();
+  }
+}
+
+function setupAutoSaveListeners(){
+  // Save bill state before page unload
+  window.addEventListener('beforeunload', () => {
+    if (state.products.length > 0 || state.customer.name) {
+      saveBillStateToLocalStorage();
+    }
+  });
+
+  // Also save when tab loses focus
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (state.products.length > 0 || state.customer.name) {
+        saveBillStateToLocalStorage();
+      }
+    }
+  });
+
+  // Save when customer fields / notes / toggles change
+  document.addEventListener('change', (e) => {
+    if (e.target && (
+      e.target.id === 'customerName' ||
+      e.target.id === 'customerAddress' ||
+      e.target.id === 'customerMobile' ||
+      e.target.id === 'invoiceDate' ||
+      e.target.id === 'invoiceNotes' ||
+      e.target.id === 'toggleWatermark' ||
+      e.target.id === 'toggleQrVisibility' ||
+      e.target.id === 'toggleSignatureVisibility' ||
+      e.target.id === 'toggleNotesVisibility'
+    )) {
+      saveBillStateToLocalStorage();
+    }
+  });
+}
+
+/* ===================================================================
    AUTH
    =================================================================== */
 
@@ -1331,6 +1487,7 @@ function saveProduct(){
     updateSummary();
   });
   closeProductModal();
+  saveBillStateToLocalStorage();
 }
 
 function editProduct(id){
@@ -1360,6 +1517,7 @@ function deleteProduct(){
   updateSummary();
   showToast('Product removed');
   closeDeleteModal();
+  saveBillStateToLocalStorage();
 }
 
 function openResetModal(){
@@ -1389,6 +1547,7 @@ function resetInvoice(silent = false){
   renderProducts();
   updateSummary();
   closeResetModal();
+  clearSavedBillState();
   if (!silent) showToast('Invoice reset', 'success');
 }
 
@@ -1986,7 +2145,8 @@ function getDismissibleOverlays(){
     [el.deleteModalOverlay, closeDeleteModal],
     [el.previewModalOverlay, closePreviewModal],
     [el.resetModalOverlay, closeResetModal],
-    [el.pdfActionModalOverlay, closePdfActionModal]
+    [el.pdfActionModalOverlay, closePdfActionModal],
+    [el.restoreBillModalOverlay, closeRestoreBillModal]
   ];
 }
 
@@ -2110,6 +2270,21 @@ function bindEvents(){
   el.btnCancelReset.addEventListener('click', closeResetModal);
   el.btnConfirmReset.addEventListener('click', resetInvoice);
 
+  el.btnRestoreBillReset.addEventListener('click', () => {
+    clearSavedBillState();
+    closeRestoreBillModal();
+    resetInvoice(true);
+    showToast('Invoice reset', 'success');
+  });
+  el.btnRestoreBillRestore.addEventListener('click', () => {
+    const restored = restoreBillStateFromLocalStorage();
+    if (restored) {
+      clearSavedBillState();
+      closeRestoreBillModal();
+      showToast('Invoice restored', 'success');
+    }
+  });
+
   el.btnThemeToggle.addEventListener('click', () => {
     applyTheme(!document.body.classList.contains('dark-theme'));
   });
@@ -2180,12 +2355,15 @@ async function init(){
   await loadConfig();
   bindEvents();
   syncDisplayToggleState();
+  setupAutoSaveListeners();
 
   showScreen('app');
   switchView('newBill');
   initInvoiceMeta();
   renderProducts();
   updateSummary();
+
+  setTimeout(() => checkAndPromptForRestore(), 50);
 }
 
 document.addEventListener('DOMContentLoaded', init);
