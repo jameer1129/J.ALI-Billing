@@ -28,8 +28,8 @@
   --warning:#B7791F;
   --radius:12px;
   --radius-sm:8px;
-  --shadow-sm:0 1px 3px rgba(20,30,50,.07);
-  --shadow-md:0 10px 28px rgba(20,30,50,.12);
+  --shadow-sm:0 1px 3px rgba(20,30,50,0.7.5);
+  --shadow-md:0 10px 28px rgba(20,30,50,0.25);
   --font:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Arial,sans-serif;
 }
 
@@ -39,8 +39,6 @@ body.dark-theme {
   --surface: var(--dark-surface, #111111);
   --white: var(--dark-surface, #111111);
   --line: var(--dark-line, #2D3748);
-  --shadow-sm: var(--dark-shadow-sm, 0 1px 3px rgba(0,0,0,0.5));
-  --shadow-md: var(--dark-shadow-md, 0 10px 28px rgba(0,0,0,0.8));
 }
 
 body.dark-theme .card { background: var(--white); border-color: var(--line); }
@@ -379,11 +377,11 @@ body.dark-theme .pdf-loading-overlay p{color:#F3F4F6;}
   transform: skewX(-25deg);
   padding: 6px 40px 6px 25px;
   color: #ffffff;
-  font-weight: 700;
-  font-size: 18px;
+  font-weight: 600;
+  font-size: 16px;
   letter-spacing: 1px;
   line-height: 1.2;
-  margin:5px;
+  margin:0 5px;
 }
 .inv-header__ribbon-text { display: inline-block; transform: skewX(25deg); }
 .inv-header__ribbon-stripe { position: absolute; top: 0; bottom: 0; right: 15px; width: 2.5px; background: #ffffff; }
@@ -450,8 +448,8 @@ body.dark-theme .pdf-loading-overlay p{color:#F3F4F6;}
 .inv-summary__total .label { font-size:16px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;}
 .inv-summary__total .value { font-size:24px; font-weight:600; word-break:break-word; overflow-wrap:break-word; text-align:right; }
 
-.inv-footer { margin-top:auto; width:100%; padding-top:20px; position:relative; z-index:5;}
-.inv-footer-details { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+.inv-footer { margin-top:auto; width:100%; padding-top:16px; position:relative; z-index:5;}
+.inv-footer-details { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
 
 .contact-block { display:flex; flex-direction:column; gap:10px; }
 .contact-block div { display:flex; align-items:center; gap:12px; font-size:13px; color:#000000; font-weight:500;}
@@ -471,13 +469,13 @@ body.dark-theme .pdf-loading-overlay p{color:#F3F4F6;}
 .inv-services__item i { font-family:'Font Awesome 6 Free', 'Font Awesome 5 Free', sans-serif !important; font-weight:900 !important; font-size:18px; }
 .inv-services__sep { width:1px; height:26px; background:rgba(255,255,255,0.4); }
 
-.inv-thanks-container { display:flex; align-items:center; justify-content:center; gap:12px; margin-top:12px; width:100%; }
+.inv-thanks-container { display:flex; align-items:center; justify-content:center; gap:12px; margin-top:8px; width:100%; }
 .inv-thanks-line { flex:1; height:2px; background:var(--primary); position:relative; opacity:0.8;}
 .inv-thanks-line.left::after { content:''; position:absolute; right:-2px; top:-2px; width:6px; height:6px; background:var(--primary); border-radius:50%; }
 .inv-thanks-line.right::after { content:''; position:absolute; left:-2px; top:-2px; width:6px; height:6px; background:var(--primary); border-radius:50%; }
 .inv-thanks { font-size:16px; font-weight:700; color:var(--primary); letter-spacing:0.2px; white-space:nowrap; }
 
-.inv-copy { text-align:center; font-size:11px; color:#212121; font-weight:600; margin-top:6px; }
+.inv-copy { text-align:center; font-size:11px; color:#212121; font-weight:600; margin-top:4px; }
 
 .invoice-page.compact .inv-table thead th{padding:8px 12px;}
 .invoice-page.compact .inv-table tbody td{padding:8px 12px;}
