@@ -1,4 +1,4 @@
-const CACHE_NAME = "j-ali-billing-v2.0.1";
+const CACHE_NAME = "j-ali-billing-v2.0.0";
 
 const STATIC_ASSETS = [
   "./assets/logo/logo.png",
