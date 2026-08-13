@@ -958,6 +958,14 @@ function isoToLocalDate(iso){
 function localDateToIso(d){
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+// Guards against feeding a malformed/legacy value into a native
+// <input type="date">, which silently resets to '' on invalid input
+// (showing as "Select date" in the custom picker) instead of erroring.
+function isValidIsoDate(str){
+  if (typeof str !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(str)) return false;
+  const d = isoToLocalDate(str);
+  return !Number.isNaN(d.getTime()) && localDateToIso(d) === str;
+}
 
 function createDatePicker(hiddenInput, triggerBtn, textEl, options = {}){
   const { placeholder = 'Select date', allowClear = false } = options;
@@ -1337,7 +1345,6 @@ function restoreBillStateFromLocalStorage(){
 
   state.customer = saved.customer || { name: '', address: '', mobile: '' };
   state.invoiceNumber = saved.invoiceNumber || '';
-  state.dateStr = saved.dateStr || '';
   state.notes = saved.notes || '';
   state.products = saved.products || [];
   // Watermark/QR/Signature/Notes toggle state comes from jas_pref_* via
@@ -1355,13 +1362,23 @@ function restoreBillStateFromLocalStorage(){
   syncDisplayToggleState();
   el.invoiceNotes.value = state.notes || '';
 
-  // Restore the invoice date
-  if (saved.invoiceDateValue) {
+  // Restore the invoice date. Validate first — a native <input type="date">
+  // silently resets to '' if given a malformed value (stale/legacy
+  // localStorage data, manual edits, etc.), which then shows as
+  // "Select date" in the custom picker instead of a real error.
+  // Falling back to today keeps New Bill always showing a valid date.
+  if (isValidIsoDate(saved.invoiceDateValue)) {
     el.invoiceDate.value = saved.invoiceDateValue;
-    if (invoiceDatePicker) {
-      invoiceDatePicker.updateText();
-    }
+  } else {
+    const now = new Date();
+    el.invoiceDate.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   }
+  if (invoiceDatePicker) {
+    invoiceDatePicker.updateText();
+  }
+  // Derive dateStr from whatever actually ended up in the input, rather
+  // than trusting a separately-saved string that could drift out of sync.
+  state.dateStr = formatDateForDisplay(el.invoiceDate.value);
 
   renderProducts();
   updateSummary();
