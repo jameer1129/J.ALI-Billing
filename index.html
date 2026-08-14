@@ -34,9 +34,9 @@
 }
 
 body.dark-theme {
-  --bg: var(--dark-bg, #000000);
+  --bg: var(--dark-bg, #0F0F0F);
   --text: var(--dark-text, #F3F4F6);
-  --surface: var(--dark-surface, #111111);
+  --surface: var(--dark-surface, #000000);
   --white: var(--dark-surface, #111111);
   --line: var(--dark-line, #2D3748);
 }
@@ -328,7 +328,7 @@ body.dark-theme .pdf-loading-overlay{background:rgba(2,6,23,.6);}
 body.dark-theme .pdf-loading-overlay .bar-card{background:var(--surface);}
 .pdf-loading-overlay .bar-track{width:160px;height:4px;background:#E4E8EE;border-radius:4px;overflow:hidden;}
 body.dark-theme .pdf-loading-overlay .bar-track{background:var(--line);}
-.pdf-loading-overlay .bar-fill{height:100%;width:45%;background:#625aff;border-radius:4px;animation: barSlide 1.1s linear infinite;}
+.pdf-loading-overlay .bar-fill{height:100%;width:45%;background:#625aff;border-radius:4px;animation:barSlide 1.1s ease-in-out infinite;}
 .pdf-loading-overlay p{margin:0;font-size:13px;font-weight:600;color:#212121;}
 body.dark-theme .pdf-loading-overlay p{color:#F3F4F6;}
 
@@ -336,7 +336,7 @@ body.dark-theme .pdf-loading-overlay p{color:#F3F4F6;}
 
 /* Full-screen boot loader shown before auth state is known */
 .boot-loader{position:fixed;inset:0;background:rgba(15,23,42,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:9998;display:flex;align-items:center;justify-content:center;}
-.boot-loader__card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:var(--white);border-radius:var(--radius-sm);padding:24px 28px;box-shadow:0 18px 42px rgba(15,23,42,0.18);}
+.boot-loader__card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:var(--bg);border-radius:var(--radius-sm);padding:24px 28px;box-shadow:0 18px 42px rgba(15,23,42,0.18);}
 .boot-loader__bar-track{width:160px;height:4px;background:var(--line);border-radius:4px;overflow:hidden;}
 .boot-loader__bar-fill{height:100%;width:45%;background:#625aff;border-radius:4px;animation:barSlide 1.1s ease-in-out infinite;}
 .boot-loader__label{font-size:13px;font-weight:600;color:var(--text);}
