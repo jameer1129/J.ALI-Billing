@@ -328,15 +328,11 @@ body.dark-theme .pdf-loading-overlay{background:rgba(2,6,23,.6);}
 body.dark-theme .pdf-loading-overlay .bar-card{background:var(--surface);}
 .pdf-loading-overlay .bar-track{width:160px;height:4px;background:#E4E8EE;border-radius:4px;overflow:hidden;}
 body.dark-theme .pdf-loading-overlay .bar-track{background:var(--line);}
-.pdf-loading-overlay .bar-fill{height:100%;width:45%;background:#625aff;border-radius:4px;animation:barSlide 1.1s ease-in-out infinite;}
+.pdf-loading-overlay .bar-fill{height:100%;width:45%;background:#625aff;border-radius:4px;animation: barSlide 1.1s linear infinite;}
 .pdf-loading-overlay p{margin:0;font-size:13px;font-weight:600;color:#212121;}
 body.dark-theme .pdf-loading-overlay p{color:#F3F4F6;}
 
-@keyframes barSlide {
-  0% { transform: translateX(-120%); }
-  50% { transform: translateX(120%); }
-  100% { transform: translateX(120%); }
-}
+@keyframes barSlide {0%{ transform: translateX(-120%); } 100%{ transform: translateX(220%)}}
 
 /* Full-screen boot loader shown before auth state is known */
 .boot-loader{position:fixed;inset:0;background:rgba(15,23,42,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:9998;display:flex;align-items:center;justify-content:center;}
@@ -764,6 +760,45 @@ body.dark-theme .pdf-loading-overlay p{color:#F3F4F6;}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
+// Used only if config.json fails to load/parse.
+// Keeps the app functional even when config.json is unavailable.
+const DEFAULT_CONFIG = {
+  company: { name: 'JAS Tech' },
+  theme: {
+    radius: '12px',
+    light: {
+      primary: '#012587',
+      background: '#F8F9FC',
+      surface: '#FFFFFF',
+      text: '#212121',
+      border: '#E5E7EB'
+    },
+    dark: {
+      primary: '#012587',
+      background: '#000000',
+      surface: '#111111',
+      text: '#F3F4F6',
+      border: '#2D3748'
+    }
+  },
+  assets: {
+    mainLogo: ''
+  },
+  invoice: {
+    defaultNotes: '',
+    filePrefix: 'Invoice-',
+    numberFormat: 'DDMMHHmmss',
+    currencySymbol: '₹'
+  },
+  footer: {
+    appVersion: 'v1.0'
+  },
+  supabase: {
+    url: '',
+    anonKey: ''
+  }
+};
+
 let CONFIG = null;
 let editingProductId = null;
 let pendingDeleteId = null;
@@ -860,11 +895,12 @@ function cacheElements(){
 
 async function loadConfig(){
   try {
-    const response = await fetch('./config.json');
+    const response = await fetch('./config.json', { cache: 'no-store' });
     if (!response.ok) throw new Error(`Failed to load config.json: ${response.status}`);
     CONFIG = await response.json();
   } catch (error) {
     console.warn("Falling back to default config.", error);
+    CONFIG = DEFAULT_CONFIG;
   }
   applyConfig();
 }
@@ -1394,22 +1430,88 @@ function closeRestoreBillModal(){
   hideOverlay(el.restoreBillModalOverlay);
 }
 
+function normalizeBillForComparison(bill) {
+  if (!bill) {
+    return {
+      customer: { name: '', address: '', mobile: '' },
+      invoiceNumber: '',
+      dateStr: '',
+      invoiceDateValue: '',
+      notes: '',
+      products: []
+    };
+  }
+
+  return {
+    customer: {
+      name: String(bill.customer?.name || '').trim(),
+      address: String(bill.customer?.address || '').trim(),
+      mobile: String(bill.customer?.mobile || '').trim()
+    },
+    invoiceNumber: String(bill.invoiceNumber || ''),
+    dateStr: String(bill.dateStr || ''),
+    invoiceDateValue: String(bill.invoiceDateValue || ''),
+    notes: String(bill.notes || ''),
+    products: Array.isArray(bill.products)
+      ? bill.products.map(p => ({
+          id: p.id,
+          name: String(p.name || ''),
+          description: String(p.description || ''),
+          serial: String(p.serial || ''),
+          qty: Number(p.qty) || 0,
+          rate: Number(p.rate) || 0
+        }))
+      : []
+  };
+}
+
+function billStatesAreEqual(current, saved) {
+  return JSON.stringify(normalizeBillForComparison(current)) ===
+         JSON.stringify(normalizeBillForComparison(saved));
+}
+
+function getCurrentBillStateForComparison() {
+  return {
+    customer: state.customer,
+    invoiceNumber: state.invoiceNumber,
+    dateStr: state.dateStr,
+    invoiceDateValue: el.invoiceDate.value,
+    notes: state.notes,
+    products: state.products
+  };
+}
+
 function checkAndPromptForRestore(){
   const saved = getSavedBillState();
-  if (saved) {
-    openRestoreBillModal();
+  if (!saved) return;
+
+  // Do not ask to restore when New Bill already contains exactly
+  // the same data as the autosaved draft.
+  const current = getCurrentBillStateForComparison();
+
+  if (billStatesAreEqual(current, saved)) {
+    return;
   }
+
+  openRestoreBillModal();
 }
 
 function setupAutoSaveListeners(){
-  // Save bill state before page unload
+  // Save bill state before page unload.
   window.addEventListener('beforeunload', () => {
     if (state.products.length > 0 || state.customer.name) {
       saveBillStateToLocalStorage();
     }
   });
 
-  // Also save when tab loses focus
+  // pagehide is especially useful on mobile/PWA app closing.
+  window.addEventListener('pagehide', () => {
+    if (state.products.length > 0 || state.customer.name) {
+      saveBillStateToLocalStorage();
+    }
+  });
+
+  // Also save when tab/app loses focus.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       if (state.products.length > 0 || state.customer.name) {
@@ -2151,13 +2253,25 @@ function bindEvents(){
     const field = document.getElementById(fieldId);
     if (!field) return;
 
+    field.addEventListener('input', (e) => {
+      if (fieldId === 'customerName') {
+        state.customer.name = e.target.value;
+        if (currentSession) saveBillStateToLocalStorage();
+      } else if (fieldId === 'customerAddress') {
+        state.customer.address = e.target.value;
+        if (currentSession) saveBillStateToLocalStorage();
+      }
+    });
+
     field.addEventListener('blur', (e) => {
       const formattedValue = applyTitleCaseToField(e.target);
 
       if (fieldId === 'customerName') {
         state.customer.name = formattedValue;
+        if (currentSession) saveBillStateToLocalStorage();
       } else if (fieldId === 'customerAddress') {
         state.customer.address = formattedValue;
+        if (currentSession) saveBillStateToLocalStorage();
       }
     });
   });
@@ -2166,14 +2280,22 @@ function bindEvents(){
     const digitsOnly = e.target.value.replace(/\D/g, '');
     if (digitsOnly !== e.target.value) e.target.value = digitsOnly;
     state.customer.mobile = digitsOnly.trim();
+    saveBillStateToLocalStorage();
   });
 
   invoiceDatePicker = createDatePicker(el.invoiceDate, el.invoiceDateInput, el.invoiceDateText, { placeholder: 'Select date' });
-  el.invoiceDate.addEventListener('change', (e) => { state.dateStr = formatDateForDisplay(e.target.value); });
-  el.invoiceDate.addEventListener('input', (e) => { state.dateStr = formatDateForDisplay(e.target.value); });
+  el.invoiceDate.addEventListener('change', (e) => {
+    state.dateStr = formatDateForDisplay(e.target.value);
+    saveBillStateToLocalStorage();
+  });
+  el.invoiceDate.addEventListener('input', (e) => {
+    state.dateStr = formatDateForDisplay(e.target.value);
+    saveBillStateToLocalStorage();
+  });
 
   el.invoiceNotes.addEventListener('input', (e) => {
     state.notes = e.target.value;
+    saveBillStateToLocalStorage();
   });
 
   [
@@ -2230,7 +2352,10 @@ function bindEvents(){
   el.btnRestoreBillRestore.addEventListener('click', () => {
     const restored = restoreBillStateFromLocalStorage();
     if (restored) {
-      clearSavedBillState();
+      // Keep the restored draft as the active autosave.
+      // This protects the latest restored/edited version if the app
+      // is closed before another edit occurs.
+      saveBillStateToLocalStorage();
       closeRestoreBillModal();
       showToast('Invoice restored', 'success');
     }
