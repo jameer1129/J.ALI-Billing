@@ -38,28 +38,13 @@ body.dark-theme {
   --text: var(--dark-text, #F3F4F6);
   --surface: var(--dark-surface, #000000);
   --white: var(--dark-surface, #111111);
-  --line: var(--dark-line, #2D3748);
+  --line: var(--dark-line, #2D3748AA);
 }
 
-body.dark-theme .card { background: var(--white); border-color: var(--line); }
-body.dark-theme .field input,
-body.dark-theme .field textarea {
-  background: var(--surface);
-  color: var(--text);
-  color-scheme: dark;
-}
-body.dark-theme .modal { background: var(--surface); border: 1px solid var(--line); }
-body.dark-theme .nav-tabs,
-body.dark-theme .auth-card { background: var(--white); }
-body.dark-theme .pdf-loading-overlay .bar-card { background: var(--surface); }
-body.dark-theme .bills-search-input-wrap input { background: var(--surface); color: var(--text); }
 body.dark-theme .product-table thead th,
 body.dark-theme .bills-table thead th { background: #1A202C; color: #63B3ED; }
 body.dark-theme .btn--outline:hover,
 body.dark-theme .btn--ghost:hover { background: #1A202C; }
-body.dark-theme .modal__header { border-bottom: 1px solid var(--line); }
-
-body.dark-theme .empty-state p { color: var(--text); }
 
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--font);-webkit-tap-highlight-color:transparent;overflow-x:hidden; transition: background 0.3s ease, color 0.3s ease;}
@@ -271,7 +256,7 @@ body.dark-theme .date-picker__today-btn:hover{background:rgba(1,37,135,.2);}
 
 .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.52);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px 16px;z-index:100;animation:fadeIn .15s ease;}
 @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
-.modal{background:var(--white);width:100%;max-width:480px;border-radius:var(--radius);max-height:90vh;overflow-y:auto;animation:modalPop .18s ease; transition: background 0.3s ease;}
+.modal{background:var(--white);width:100%;max-width:480px;border-radius:var(--radius);max-height:90vh;overflow-y:auto;animation:modalPop .18s ease; transition: background 0.3s ease;border:1px solid var(--line);}
 @keyframes modalPop{from{transform:scale(.96);opacity:0;}to{transform:scale(1);opacity:1;}}
 .modal__header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 8px;}
 .modal__header h3{margin:0;font-size:16px;color:var(--primary);}
@@ -763,7 +748,7 @@ body.dark-theme .pdf-loading-overlay p{color:#F3F4F6;}
 // Used only if config.json fails to load/parse.
 // Keeps the app functional even when config.json is unavailable.
 const DEFAULT_CONFIG = {
-  company: { name: 'JAS Tech' },
+  company: { name: 'XYZ Company' },
   theme: {
     radius: '12px',
     light: {
@@ -778,7 +763,7 @@ const DEFAULT_CONFIG = {
       background: '#000000',
       surface: '#111111',
       text: '#F3F4F6',
-      border: '#2D3748'
+      border: '#2D3748AA'
     }
   },
   assets: {
@@ -920,7 +905,7 @@ function applyConfig(){
   root.setProperty('--dark-bg', darkTheme.background || '#000000');
   root.setProperty('--dark-text', darkTheme.text || '#F3F4F6');
   root.setProperty('--dark-surface', darkTheme.surface || '#111111');
-  root.setProperty('--dark-line', darkTheme.border || '#2D3748');
+  root.setProperty('--dark-line', darkTheme.border || '#2D3748AA');
   root.setProperty('--dark-primary', darkTheme.primary || lightTheme.primary || '#012587');
 
   el.appBarLogo.src = CONFIG.assets.mainLogo || '';
