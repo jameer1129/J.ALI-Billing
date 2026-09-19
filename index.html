@@ -1924,12 +1924,12 @@ function scheduleHtml2PdfWarmup(){
    Point the asset paths at your own logo/watermark/QR/signature images
    (or leave them blank to omit that element from the invoice).
    =================================================================== */
-const CONFIG = {
+let CONFIG = {
   company: {
-    name: 'JAS Tech',
-    addressLines: ['Hafeezpet, Hyderabad', 'Telangana - 500049'],
-    phone: '9700322231',
-    email: 'jastechhyd@gmail.com'
+    name: '',
+    addressLines: ['', ''],
+    phone: '',
+    email: ''
   },
   theme: {
     light: { primary: '#012587', primaryText: '#012587', background: '#F8F9FC', surface: '#FFFFFF', text: '#212121', border: '#d5d5d5' },
@@ -1943,8 +1943,8 @@ const CONFIG = {
     signature: 'assets/signature/signature.png'
   },
   invoice: {
-    defaultNotes: 'Thank you for choosing JAS Tech.\nFor any support, feel free to contact us.',
-    filePrefix: 'JAS_Invoice_',
+    defaultNotes: '',
+    filePrefix: 'Invoice_',
     numberFormat: 'MMDDHHmmss',
     currencySymbol: '₹'
   },
@@ -1957,7 +1957,7 @@ const CONFIG = {
     showTotalQuantity: true
   },
   scanner: { scannerCaption: 'Scan to Connect' },
-  signatureBlock: { forLine: 'For JAS Tech', authLine: 'Authorized Signature' },
+  signatureBlock: { forLine: '', authLine: 'Authorized Signature' },
   services: [
     { icon: 'fa-shield-halved', label: 'Genuine Laptop Products' },
     { icon: 'fa-screwdriver-wrench', label: 'Professional Service' },
@@ -1966,8 +1966,8 @@ const CONFIG = {
     { icon: 'fa-star', label: 'Customer Satisfaction' }
   ],
   footer: {
-    thankYouMessage: 'Thank you for choosing JAS Tech!',
-    copyrightLine: '© 2026 JAS Tech | Laptop Sales • Service • Accessories'
+    thankYouMessage: '',
+    copyrightLine: ''
   }
 };
 
@@ -3808,8 +3808,43 @@ function bindEvents(){
     }
   });
 }
+async function loadExternalConfig(){
+  try {
+    const response = await fetch('./config.json', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const externalConfig = await response.json();
+
+    CONFIG = {
+      ...CONFIG,
+      ...externalConfig,
+      company: { ...CONFIG.company, ...(externalConfig.company || {}) },
+      theme: {
+        ...CONFIG.theme,
+        ...(externalConfig.theme || {}),
+        light: { ...CONFIG.theme.light, ...(externalConfig.theme?.light || {}) },
+        dark: { ...CONFIG.theme.dark, ...(externalConfig.theme?.dark || {}) }
+      },
+      assets: { ...CONFIG.assets, ...(externalConfig.assets || {}) },
+      invoice: { ...CONFIG.invoice, ...(externalConfig.invoice || {}) },
+      display: { ...CONFIG.display, ...(externalConfig.display || {}) },
+      scanner: { ...CONFIG.scanner, ...(externalConfig.scanner || {}) },
+      signatureBlock: { ...CONFIG.signatureBlock, ...(externalConfig.signatureBlock || {}) },
+      footer: { ...CONFIG.footer, ...(externalConfig.footer || {}) },
+      services: Array.isArray(externalConfig.services)
+        ? externalConfig.services
+        : CONFIG.services
+    };
+
+    console.log('[CONFIG] config.json applied successfully');
+  } catch (error) {
+    console.warn('[CONFIG] config.json not loaded; using generic built-in defaults.', error);
+  }
+}
+
 async function init(){
   cacheElements();
+  await loadExternalConfig();
   const savedTheme = localStorage.getItem('jas_theme');
   applyTheme(savedTheme === 'dark');
   applyConfig();
