@@ -13,6 +13,7 @@ const CLAIM_DELAY_MS = 2000;
 
 const STATIC_ASSETS = [
   "./index.html",
+  "./config.json",
   "./manifest.json",
   "./assets/logo/logo.png",
   "./assets/logo/horizontal-logo.png",
