@@ -1943,8 +1943,7 @@ let editingProductId = null;
 let pendingDeleteId = null;
 const A4_PAGE_HEIGHT_PX = 1123; // A4 height in px at 96dpi, used for PDF pagination
 const TOAST_DURATION_MS = 2500;
-const AUTH_TOAST_DURATION_MS = 5000;
-const MAX_VISIBLE_TOASTS = 4;
+const MAX_VISIBLE_TOASTS = 3;
 let _openDatePickerClose = null;
 let invoiceDatePicker = null;
 const state = {
@@ -3815,7 +3814,7 @@ async function init(){
   setTimeout(() => { preparePwaEntry().catch((error) => console.warn('PWA install check failed:', error)); }, 500);
   if (sessionStorage.getItem('jas_pwa_updated') === '1') {
     sessionStorage.removeItem('jas_pwa_updated');
-    setTimeout(() => showToast('App updated successfully', 'success', AUTH_TOAST_DURATION_MS), 300);
+    setTimeout(() => showToast('App updated successfully', 'success', 5000), 300);
   }
   checkAndPromptForRestore();
 }
