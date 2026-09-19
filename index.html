@@ -3793,12 +3793,9 @@ function bindEvents(){
 
 async function init(){
   cacheElements();
-  //for every page load black theme applied first and then the saved theme applied after config load to avoid flicker
-  CONFIG = DEFAULT_CONFIG;
-  applyConfig();
+  await loadConfig();
   const savedTheme = localStorage.getItem('jas_theme');
   applyTheme(savedTheme === 'dark');
-  await loadConfig();
   initInvoiceMeta();
   renderProducts();
   updateSummary();
