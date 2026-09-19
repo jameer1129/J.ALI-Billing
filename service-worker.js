@@ -93,7 +93,10 @@ function cacheFirst(request) {
       }
 
       return response;
-    } catch {
+    } catch (error) {
+      if (error && error.name === "AbortError") {
+        return new Response(null, { status: 408, statusText: "Aborted" });
+      }
       return Response.error();
     }
   });
