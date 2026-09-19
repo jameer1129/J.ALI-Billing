@@ -11,16 +11,20 @@
   "theme": {
     "light": {
       "primary": "#012587",
+      "primaryText": "#012587",
       "background": "#F8F9FC",
       "surface": "#FFFFFF",
-      "text": "#212121"
+      "text": "#212121",
+      "border": "#d5d5d5"
     },
     "dark": {
-      "background": "#0F0F0F",
+      "primary": "#012587",
+      "primaryText": "#5278D8",
+      "background": "#000000",
       "surface": "#000000",
-      "text": "#F3F4F6"
-    },
-    "radius": "12px"
+      "text": "#F3F4F6",
+      "border": "#2D3748AA"
+    }
   },
   "assets": {
     "horizontalLogo": "assets/logo/horizontal-logo.png",
@@ -74,7 +78,6 @@
   ],
   "footer": {
     "thankYouMessage": "Thank you for choosing J.Ali Electronics & Electricals!",
-    "copyrightLine": "© 2026 J.Ali Electronics & Electricals | End 2 End Solutions",
-    "appVersion": "v2.0.0"
+    "copyrightLine": "© 2026 J.Ali Electronics & Electricals | End 2 End Solutions"
   }
 }

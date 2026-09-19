@@ -4,10 +4,18 @@
   "description": "Professional billing software for J.ALI — generate invoices in seconds.",
   "start_url": "./index.html",
   "scope": "./",
+  "id": "./",
   "display": "standalone",
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "./manifest.json",
+      "id": "https://jameer1129.github.io"
+    }
+  ],
   "orientation": "portrait-primary",
   "theme_color": "#012587",
-  "background_color": "#FFFFFF",
+  "background_color": "#012587",
   "icons": [
     {
       "src": "assets/icons/app-icon.png",
@@ -15,5 +23,8 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  }
 }
