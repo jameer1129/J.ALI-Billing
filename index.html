@@ -1735,7 +1735,7 @@ body.dark-theme .app-footer p{opacity:.4;}
     </div>
   </main>
   <footer class="app-footer">
-    <p>J.Ali <span id="appFooterVersion">v1.0.0</span></p>
+    <p id="appFooterVersion">v1.0.0</p>
   </footer>
 </div>
 <div class="modal-overlay hide" id="productModalOverlay">
@@ -2092,12 +2092,12 @@ function applyConfig(){
   if(CONFIG.invoice.defaultNotes) el.invoiceNotes.value = CONFIG.invoice.defaultNotes;
   if(CONFIG.invoice.defaultNotes) state.notes = CONFIG.invoice.defaultNotes;
   syncDisplayToggleState();
-  if (el.drawerFooterVersion) {
+  if (el.appFooterVersion) {
     const version = 'v1.0.0';
-    el.drawerFooterVersion.textContent = `${CONFIG.company.name} Billing ${version}`;
+    el.appFooterVersion.textContent = `${CONFIG.company.name} Billing ${version}`;
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', (e) => {
-        if (typeof e.data === 'string') el.drawerFooterVersion.textContent = `${CONFIG.company.name} Billing ${e.data}`;
+        if (typeof e.data === 'string') el.appFooterVersion.textContent = `${CONFIG.company.name} Billing ${e.data}`;
       });
       navigator.serviceWorker.ready.then((reg) => {
         reg.active?.postMessage({ type: 'GET_VERSION' });
@@ -3623,9 +3623,6 @@ async function applyPwaUpdate(){
   el.pwaUpdateModalOverlay.setAttribute('aria-hidden', 'true');
   await hideOverlay(el.pwaUpdateModalOverlay);
   sessionStorage.setItem('jas_pwa_updated', '1');
-  // Tell the new (waiting) service worker to take over immediately instead
-  // of waiting for every open tab of the old version to close first.
-  if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
   reloadAfterPwaUpdate(registration);
 }
 

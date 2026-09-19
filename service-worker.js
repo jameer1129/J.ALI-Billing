@@ -23,15 +23,6 @@ const STATIC_ASSETS = [
   "./assets/icons/whatsapp-qr.jpeg",
 ];
 
-self.addEventListener("message", (event) => {
-  if (event.data?.type === "GET_VERSION") {
-    event.source.postMessage(CACHE_NAME);
-  }
-  if (event.data?.type === "SKIP_WAITING") {
-    self.skipWaiting();
-  }
-});
-
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
