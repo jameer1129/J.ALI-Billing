@@ -63,6 +63,22 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// =========================================================
+// MESSAGE HANDLING — respond to the page asking for our version
+// =========================================================
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "GET_VERSION") {
+    // Reply on the MessageChannel port if the page provided one,
+    // otherwise reply to the tab that sent the message.
+    const respondTo = event.ports && event.ports[0]
+      ? event.ports[0]
+      : event.source;
+
+    respondTo?.postMessage(CACHE_NAME);
+  }
+});
+
 /**
  * CACHE FIRST
  *
