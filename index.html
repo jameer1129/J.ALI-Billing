@@ -485,7 +485,7 @@ body.dark-theme .prod-stat--amt{background:rgba(23,105,255,.14);}
   border-radius:var(--radius-sm);
   font-size:14.5px;
   color:var(--text);
-  background:transparent;
+  background:transparent !important;
   cursor:pointer;
   outline:none;
   transition:border-color .15s ease,box-shadow .15s ease, background 0.3s ease;
@@ -2085,7 +2085,7 @@ function applyConfig(){
   root.setProperty('--text', lightTheme.text || '#212121');
   root.setProperty('--line', lightTheme.border || '#d5d5d5');
   root.setProperty('--dark-primary', darkTheme.primary || '#012587');
-  root.setProperty('--dark-primary-text', darkTheme.primaryText || '#3164F7');
+  root.setProperty('--dark-primary-text', darkTheme.primaryText || '#5278D8');
   root.setProperty('--dark-bg', darkTheme.background || '#000000');
   root.setProperty('--dark-text', darkTheme.text || '#F3F4F6');
   root.setProperty('--dark-surface', darkTheme.surface || '#000000');
@@ -3808,46 +3808,32 @@ function bindEvents(){
     }
   });
 }
-async function loadExternalConfig(){
+async function loadConfig(){
   try {
-    const response = await fetch('./config.json', { cache: 'no-store' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const externalConfig = await response.json();
-
-    CONFIG = {
-      ...CONFIG,
-      ...externalConfig,
-      company: { ...CONFIG.company, ...(externalConfig.company || {}) },
-      theme: {
-        ...CONFIG.theme,
-        ...(externalConfig.theme || {}),
-        light: { ...CONFIG.theme.light, ...(externalConfig.theme?.light || {}) },
-        dark: { ...CONFIG.theme.dark, ...(externalConfig.theme?.dark || {}) }
-      },
-      assets: { ...CONFIG.assets, ...(externalConfig.assets || {}) },
-      invoice: { ...CONFIG.invoice, ...(externalConfig.invoice || {}) },
-      display: { ...CONFIG.display, ...(externalConfig.display || {}) },
-      scanner: { ...CONFIG.scanner, ...(externalConfig.scanner || {}) },
-      signatureBlock: { ...CONFIG.signatureBlock, ...(externalConfig.signatureBlock || {}) },
-      footer: { ...CONFIG.footer, ...(externalConfig.footer || {}) },
-      services: Array.isArray(externalConfig.services)
-        ? externalConfig.services
-        : CONFIG.services
-    };
-
-    console.log('[CONFIG] config.json applied successfully');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), nextNetworkTimeoutMs());
+    let response;
+    try {
+      response = await fetch('./config.json', { signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    if (!response.ok) throw new Error(`Failed to load config.json: ${response.status}`);
+    CONFIG = await response.json();
   } catch (error) {
-    console.warn('[CONFIG] config.json not loaded; using generic built-in defaults.', error);
+    console.warn("Falling back to default config.", error);
+    CONFIG = DEFAULT_CONFIG;
   }
+  applyConfig();
 }
 
 async function init(){
   cacheElements();
-  await loadExternalConfig();
+  //for every page load black theme applied first and then the saved theme applied after config load to avoid flicker
+  applyConfig();
   const savedTheme = localStorage.getItem('jas_theme');
   applyTheme(savedTheme === 'dark');
-  applyConfig();
+  await loadConfig();
   initInvoiceMeta();
   renderProducts();
   updateSummary();
