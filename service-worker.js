@@ -6,7 +6,7 @@
 
 // Bump this string on every deploy — that's what makes the browser detect
 // a new worker and triggers the in-app "Update Available" modal.
-const CACHE_NAME = "v2.1.5";
+const CACHE_NAME = "v2.1.6";
 
 // Delay before taking control of already-open pages.
 const CLAIM_DELAY_MS = 2000;
@@ -126,11 +126,12 @@ self.addEventListener("fetch", (event) => {
   }
 
   // =========================================================
-  // HTML + NAVIGATION — CACHE FIRST, WITH INDEX FALLBACK
+  // HTML + NAVIGATION + CONFIG — CACHE FIRST
   // =========================================================
   if (
     event.request.mode === "navigate" ||
-    url.pathname.endsWith(".html")
+    url.pathname.endsWith(".html") ||
+    url.pathname.endsWith("config.json")
   ) {
     event.respondWith(
       cacheFirst(event.request).then(async (response) => {

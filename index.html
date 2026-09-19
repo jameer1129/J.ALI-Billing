@@ -1581,7 +1581,7 @@ body.dark-theme .app-footer p{opacity:.4;}
 <!-- ================= BOOT / ACTION LOADER ================= -->
 <div class="boot-loader hide" id="bootLoader" aria-live="polite" aria-busy="true">
   <div class="boot-loader__card">
-    <img src="assets/logo/logo.png" alt="Logo" class="boot-loader__logo" onerror="this.style.display='none'">
+    <img src="assets/logo/logo.png" alt="Logo" class="boot-loader__logo" id="appBarLogo">
     <div class="boot-loader__bar-track" aria-hidden="true">
       <div class="boot-loader__bar-fill"></div>
     </div>
@@ -1592,7 +1592,7 @@ body.dark-theme .app-footer p{opacity:.4;}
 <div id="appScreen">
   <header class="app-bar">
     <div class="app-bar__brand">
-      <img src="assets/logo/logo.png" alt="Logo" class="app-bar__logo" id="appBarLogo" onerror="this.style.display='none'">
+      <img src="assets/logo/logo.png" alt="Logo" class="app-bar__logo" id="appBarLogo">
       <div class="app-bar__title">
         <h1 id="appBarCompanyName"></h1>
         <span>Invoices in seconds</span>
@@ -1924,53 +1924,21 @@ function scheduleHtml2PdfWarmup(){
    Point the asset paths at your own logo/watermark/QR/signature images
    (or leave them blank to omit that element from the invoice).
    =================================================================== */
-let CONFIG = {
-  company: {
-    name: '',
-    addressLines: ['', ''],
-    phone: '',
-    email: ''
-  },
+const DEFAULT_CONFIG = {
+  company: { name: 'XYZ Company' },
   theme: {
-    light: { primary: '#012587', primaryText: '#012587', background: '#F8F9FC', surface: '#FFFFFF', text: '#212121', border: '#d5d5d5' },
-    dark:  { primary: '#012587', primaryText: '#5278D8', background: '#000000', surface: '#000000', text: '#F3F4F6', border: '#2D3748AA' }
+    light: { primary: '', primaryText:'', background: '', surface: '', text: '', border: '' },
+    dark:  { primary: '', primaryText:'', background: '', surface: '', text: '', border: '' }
   },
-  assets: {
-    mainLogo: 'assets/logo/logo.png',
-    horizontalLogo: 'assets/logo/horizontal-logo.png',
-    watermark: 'assets/logo/main-logo.png',
-    scannerQr: 'assets/icons/whatsapp-qr.jpeg',
-    signature: 'assets/signature/signature.png'
-  },
+  assets: { mainLogo: '' },
   invoice: {
     defaultNotes: '',
-    filePrefix: 'Invoice_',
+    filePrefix: 'Invoice-',
     numberFormat: 'MMDDHHmmss',
     currencySymbol: '₹'
   },
-  display: {
-    showQr: true,
-    showSignature: true,
-    showNotes: true,
-    showWatermark: true,
-    showTotalItems: true,
-    showTotalQuantity: true
-  },
-  scanner: { scannerCaption: 'Scan to Connect' },
-  signatureBlock: { forLine: '', authLine: 'Authorized Signature' },
-  services: [
-    { icon: 'fa-shield-halved', label: 'Genuine Laptop Products' },
-    { icon: 'fa-screwdriver-wrench', label: 'Professional Service' },
-    { icon: 'fa-gauge-high', label: 'Fast Turnaround' },
-    { icon: 'fa-indian-rupee-sign', label: 'Affordable Pricing' },
-    { icon: 'fa-star', label: 'Customer Satisfaction' }
-  ],
-  footer: {
-    thankYouMessage: '',
-    copyrightLine: ''
-  }
 };
-
+let CONFIG = null
 let editingProductId = null;
 let pendingDeleteId = null;
 const A4_PAGE_HEIGHT_PX = 1123; // A4 height in px at 96dpi, used for PDF pagination
@@ -2074,6 +2042,26 @@ function cacheElements(){
   el.toastStack = document.getElementById('toastStack');
   el.appFooterVersion = document.getElementById('appFooterVersion');
 }
+
+async function loadConfig(){
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    let response;
+    try {
+      response = await fetch('./config.json', { signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    if (!response.ok) throw new Error(`Failed to load config.json: ${response.status}`);
+    CONFIG = await response.json();
+  } catch (error) {
+    console.warn("Falling back to default config.", error);
+    CONFIG = DEFAULT_CONFIG;
+  }
+  applyConfig();
+}
+
 function applyConfig(){
   const root = document.documentElement.style;
   const lightTheme = CONFIG.theme.light || {};
@@ -2095,32 +2083,30 @@ function applyConfig(){
     const isDark = document.body.classList.contains('dark-theme');
     themeColorMeta.setAttribute('content', (isDark ? darkTheme.primary : lightTheme.primary) || '#012587');
   }
-  if (el.appBarLogo) {
-    if (CONFIG.assets.mainLogo) { el.appBarLogo.src = CONFIG.assets.mainLogo; el.appBarLogo.style.display = ''; }
-    else { el.appBarLogo.style.display = 'none'; }
-  }
-  if (el.appBarCompanyName) el.appBarCompanyName.textContent = (CONFIG.company.name + ' Billing').toUpperCase();
+  el.appBarLogo.src = CONFIG.assets.mainLogo || '';
+  el.appBarCompanyName.textContent = (CONFIG.company.name + ' Billing').toUpperCase();
   document.title = CONFIG.company.name + ' Billing';
   const metaDescription = document.getElementById('metaDescription');
-  if (metaDescription) metaDescription.setAttribute('content', `Professional billing software for ${CONFIG.company.name} — generate invoices in seconds.`);
-  if (CONFIG.invoice.defaultNotes) { el.invoiceNotes.value = CONFIG.invoice.defaultNotes; state.notes = CONFIG.invoice.defaultNotes; }
+  if (metaDescription) {
+    metaDescription.setAttribute('content', `Professional billing software for ${CONFIG.company.name} — generate invoices in seconds.`);
+  }
+  if(CONFIG.invoice.defaultNotes) el.invoiceNotes.value = CONFIG.invoice.defaultNotes;
+  if(CONFIG.invoice.defaultNotes) state.notes = CONFIG.invoice.defaultNotes;
   syncDisplayToggleState();
+  if (el.drawerFooterVersion) {
+    const version = 'v1.0.0';
+    el.drawerFooterVersion.textContent = `${CONFIG.company.name} Billing ${version}`;
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', (e) => {
+        if (typeof e.data === 'string') el.drawerFooterVersion.textContent = `${CONFIG.company.name} Billing ${e.data}`;
+      });
+      navigator.serviceWorker.ready.then((reg) => {
+        reg.active?.postMessage({ type: 'GET_VERSION' });
+      });
+    }
+  }
 }
-/* ===================================================================
-   FOOTER VERSION — reads the running cache name straight from the
-   service worker (CACHE_NAME in service-worker.js), so the footer always
-   reflects whatever version is actually installed, not a hardcoded string.
-   =================================================================== */
-function setupFooterVersion(){
-  if (!el.appFooterVersion) return;
-  if (!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.addEventListener('message', (e) => {
-    if (typeof e.data === 'string' && e.data) el.appFooterVersion.textContent = e.data;
-  });
-  navigator.serviceWorker.ready.then((reg) => {
-    reg.active?.postMessage({ type: 'GET_VERSION' });
-  }).catch(() => {});
-}
+
 function pad(n){ return n.toString().padStart(2,'0'); }
 function generateTemporaryInvoiceReference(date = new Date()){
   const format = CONFIG.invoice.numberFormat || 'DDMMHHmmss';
@@ -3808,28 +3794,11 @@ function bindEvents(){
     }
   });
 }
-async function loadConfig(){
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), nextNetworkTimeoutMs());
-    let response;
-    try {
-      response = await fetch('./config.json', { signal: controller.signal });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-    if (!response.ok) throw new Error(`Failed to load config.json: ${response.status}`);
-    CONFIG = await response.json();
-  } catch (error) {
-    console.warn("Falling back to default config.", error);
-    CONFIG = DEFAULT_CONFIG;
-  }
-  applyConfig();
-}
 
 async function init(){
   cacheElements();
   //for every page load black theme applied first and then the saved theme applied after config load to avoid flicker
+  CONFIG = DEFAULT_CONFIG;
   applyConfig();
   const savedTheme = localStorage.getItem('jas_theme');
   applyTheme(savedTheme === 'dark');
@@ -3843,7 +3812,6 @@ async function init(){
   syncPopOpenState();
   scheduleHtml2PdfWarmup();
   registerPwaServiceWorker();
-  setupFooterVersion();
   setTimeout(() => { preparePwaEntry().catch((error) => console.warn('PWA install check failed:', error)); }, 500);
   if (sessionStorage.getItem('jas_pwa_updated') === '1') {
     sessionStorage.removeItem('jas_pwa_updated');
