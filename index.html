@@ -651,7 +651,7 @@ body.dark-theme .bills-table thead th.sort-active .sort-arrow{color:#63B3ED;}
   gap:12px;
   min-width:0;
   overflow:hidden;
-  padding:12px 10px 10px;
+  padding:14px 10px 10px;
   border:1px solid var(--line);
   border-radius:12px;
   animation:toastIn .22s ease-out forwards;
@@ -710,7 +710,7 @@ body.dark-theme .bills-table thead th.sort-active .sort-arrow{color:#63B3ED;}
 .toast-card--success{--toast-accent:#16A34A;background:#F0FDF4;border-color:#16a34aaa;}
 .toast-card--info{--toast-accent:#1677FF;background:#EFF6FF;border-color:#1677FFaa;}
 .toast-card--warning{--toast-accent:#FBBF24;background:#FFFBEB;border-color:#FBBF24aa;}
-.toast-card--error{--toast-accent:#EF233C;background:#FFF1F2;border-color:#EF233Caa;}
+.toast-card--error{--toast-accent:#D64545;background:#FFF1F2;border-color:#D64545AA;}
 /* Warning uses a black symbol, while success/info/error symbols stay white. */
 .toast-card--warning .toast-card__icon{color:#FFC122;background:black;font-size:24px;width:6px;height:14px;margin:9px 12px; }
 /* ---------- Dark Theme ---------- */
@@ -719,7 +719,7 @@ body.dark-theme .toast-card__close:hover{background:rgba(255,255,255,.08);color:
 body.dark-theme .toast-card--success{background:#0D2417;border-color:#16a34aaa;}
 body.dark-theme .toast-card--info{background:#0E2036;border-color:#1677FFaa;}
 body.dark-theme .toast-card--warning{background:#2A210C;border-color:#FBBF24aa;}
-body.dark-theme .toast-card--error{background:#2B1514;border-color:#EF233Caa;}
+body.dark-theme .toast-card--error{background:#2B1514;border-color:#D64545AA;}
 
 @keyframes toastTimeout{
   from{transform:scaleX(1);}
@@ -2747,7 +2747,7 @@ function saveProduct(){
   if (!markError(el.prodName, input.name !== '')) isValid = false;
   if (!markError(el.prodQty, !isNaN(input.qty) && input.qty > 0)) isValid = false;
   if (!markError(el.prodRate, !isNaN(input.rate) && input.rate >= 0 && el.prodRate.value.trim() !== '')) isValid = false;
-  if (!isValid) { showToast('Please fix the highlighted fields.', 'warning'); return; }
+  if (!isValid) { showToast('Please fix the highlighted fields.', 'info'); return; }
   if (editingProductId) {
     const product = state.products.find(p => p.id === editingProductId);
     if (product) Object.assign(product, input);
@@ -2781,7 +2781,7 @@ function deleteProduct(){
   state.products = state.products.filter(p => p.id !== pendingDeleteId);
   renderProducts();
   updateSummary();
-  showToast('Product removed', 'success');
+  showToast('Product removed', 'error');
   closeDeleteModal();
   saveBillStateToLocalStorage();
 }
@@ -2897,7 +2897,7 @@ function resetInvoice(showToastMsg = true, clearAutosave = true){
   updateSummary();
   closeResetModal();
   if (clearAutosave) clearSavedBillState();
-  if (showToastMsg) showToast('Invoice reset', 'success');
+  if (showToastMsg) showToast('Invoice reset', 'info');
 }
 function renderProducts(){
   const products = state.products;
@@ -3180,7 +3180,7 @@ function openPreviewModal(){
     el.customerName.focus();
     return;
   }
-  if (!state.products.length) { showToast('Add at least one product to generate preview PDF.', 'warning'); return; }
+  if (!state.products.length) { showToast('Add at least one product to generate preview PDF.', 'error'); return; }
   showOverlay(el.previewModalOverlay);
   renderInvoiceTemplate('previewScaleContainer');
   fitInvoiceToSinglePage();
@@ -3245,7 +3245,7 @@ async function generateAndShowPdf(){
     el.customerName.focus();
     return;
   }
-  if (!state.products.length) { showToast('Add at least one product before generating PDF.', 'warning'); return; }
+  if (!state.products.length) { showToast('Add at least one product before generating PDF.', 'error'); return; }
   try {
     if (!state.invoiceNumber) state.invoiceNumber = generateTemporaryInvoiceReference();
     saveRecentCustomer(state.customer);
