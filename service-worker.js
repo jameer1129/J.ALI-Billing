@@ -6,7 +6,7 @@
 
 // Bump this string on every deploy — that's what makes the browser detect
 // a new worker and triggers the in-app "Update Available" modal.
-const CACHE_NAME = "v2.1.6";
+const CACHE_NAME = "v2.1.7";
 
 // Delay before taking control of already-open pages.
 const CLAIM_DELAY_MS = 2000;
