@@ -33,6 +33,13 @@
     "signature": "assets/signature/signature.png",
     "scannerQr": "assets/icons/whatsapp-qr.jpeg"
   },
+  "supabase": {
+    "url": "https://pqyzcsjitfomdkmarplg.supabase.co",
+    "anonKey": "sb_publishable_GOdxj6Kb44G9GmG3ORkv4A_qo8L0HIK"
+  },
+   "push": {
+    "vapidPublicKey": "BHmF9OZyE1xYiDjdnmpFiGHpZtBP3oYsMS1SaZ-k-8wuGxABJ1Q9t_YC6lMRQkU2BQThB5sb90m21_eXUkxfJjs"
+  },
   "display": {
     "showWatermark": true,
     "showQr": true,
@@ -79,5 +86,6 @@
   "footer": {
     "thankYouMessage": "Thank you for choosing J.Ali Electronics & Electricals!",
     "copyrightLine": "© 2026 J.Ali Electronics & Electricals | End 2 End Solutions"
-  }
+  },
+  "public_invoice_url": "./invoice.html"
 }

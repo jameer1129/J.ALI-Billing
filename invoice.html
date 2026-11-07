@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#012587">
+<title>J.Ali - Invoice</title>
+<link rel="icon" href="assets/icons/app-icon.png">
+<link rel="apple-touch-icon" href="assets/icons/app-icon.png">
+<link rel="stylesheet" href="./invoice-engine.css?v=6">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;750;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.3.1/css/all.min.css">
+<style>
+:root{
+  --primary:#012587;
+  --ink:#111827;
+  --muted:#6B7280;
+  --paper:#FFFFFF;
+  --surface:#F7F8FC;
+  --line:#E4E7F0;
+  --success:#1F9254;
+  --error:#DC2626;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink);}
+html,body,button,input,select{font-family:"Roboto",sans-serif;font-synthesis:none;font-kerning:normal;}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+
+.customer-shell{width:min(100%,400px);text-align:center;}
+
+.state{display:none;align-items:center;justify-content:center;flex-direction:column;min-height:74vh;gap:14px;}
+.state.active{display:flex;animation:stateIn .5s cubic-bezier(.16,.84,.44,1);}
+@keyframes stateIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+.brand-wrap{display:flex;flex-direction:column;align-items:center;gap:3px;}
+.brand-mark {
+  background:var(--paper);
+  height: 18vw;
+  max-height: 60px;
+  object-fit: contain;
+  padding: 7px 14px;
+  border-radius: 6px;
+  border:1px solid var(--line);
+  box-shadow: 0 3px 10px rgba(1, 37, 135, 0.12);
+}
+
+.state h1{font-size:24px;font-weight:700;margin:0;color:var(--ink);letter-spacing:-.01em;}
+.state p{margin:0;color:var(--muted);font-size:14.5px;line-height:1.55;max-width:300px;}
+
+/* ---------- invoice card (loading / ready / generating / success / error) ---------- */
+.card-stage{position:relative;display:flex;align-items:center;justify-content:center;padding:8px;}
+.invoice-card{position:relative;width:145px;height:185px;background:#fff;border-radius:18px;border:1px solid var(--line);box-shadow: 0 3px 10px rgba(1, 37, 135, 0.12);overflow:hidden;flex:0 0 auto;}
+.invoice-card__top{position:absolute;top:0;left:0;right:0;height:14px;background:var(--primary);border-radius:18px 18px 0 0;}
+.invoice-card__body{position:absolute;inset:28px 18px 18px 18px;display:flex;flex-direction:column;gap:10px;}
+.skel{height:7px;border-radius:4px;background:var(--surface);border:1px solid var(--line);}
+.skel--a{width:72%;margin-top:20px;}
+.skel--b{width:88%;}
+.skel--c{width:58%;margin-top:50px;}
+.skel--d{width:80%;}
+
+.invoice-pill{position:absolute;top:22px;right:14px;display:flex;align-items:center;gap:5px;background:var(--primary);color:#fff;font-size:10px;font-weight:700;letter-spacing:.04em;padding:5px 9px;border-radius:999px;z-index:2;}
+.invoice-pill i{font-size:9px;}
+
+.card-badge{position:absolute;left:50%;top:53.5%;transform:translate(-50%,-50%);width:60px;height:60px;border-radius:50%;background:var(--paper);border:3px solid #fff;display:grid;place-items:center;color:#fff;font-size:24px;z-index:3;}
+.card-badge--anim{background:var(--primary);}
+.card-badge--success{background:var(--success);}
+.card-badge--error{background:var(--error);}
+.card-badge--percent{width:75px;height:50px;min-width:0;border-radius:14px;color:var(--primary);font-weight:800;font-size:20px;padding:8px 13px;border:2px solid var(--primary);background:var(--paper)}
+.card-badge--search{
+  width:50px;
+  height:50px;
+  font-size:20px;
+  background:#ff9700;
+  animation:searchFloat 2s ease-in-out infinite;
+  overflow:visible;
+}
+.card-badge--search::after{
+  content:"";
+  position:absolute;
+  inset:-8px;
+  border:2px solid var(--primary);
+  border-radius:50%;
+  opacity:0;
+  animation:searchRipple .5s ease-out infinite;
+}
+@keyframes searchFloat{
+  0%   { transform: translate(-50%, -50%) translate(-35px, -25px) rotate(0deg); }
+  25%  { transform: translate(-50%, -50%) translate(35px, 50px) rotate(15deg); }
+  50%  { transform: translate(-50%, -50%) translate(35px, -25px) rotate(0deg); }
+  75%  { transform: translate(-50%, -50%) translate(-35px, 50px) rotate(15deg); }
+  100% { transform: translate(-50%, -50%) translate(-35px, -25px) rotate(0deg); }
+}
+@keyframes searchRipple{
+  0%{transform:scale(.75);opacity:.45;}
+  70%{transform:scale(1.35);opacity:0;}
+  100%{transform:scale(1.35);opacity:0;}
+}
+
+/* ---------- circular progress ring (generating state) ---------- */
+.ring-wrap{position:relative;width:280px;height:280px;display:flex;align-items:center;justify-content:center;}
+.ring-wrap svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);}
+.ring-track{fill:none;stroke:var(--surface);stroke-width:6;}
+.ring-progress{fill:none;stroke:var(--primary);stroke-width:6;stroke-linecap:round;stroke-dasharray:691.15;stroke-dashoffset:691.15;transition:stroke-dashoffset .12s linear;}
+
+.invoice-number{box-shadow: 0 3px 10px rgba(1, 37, 135, 0.12);display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;max-width:250px;background:#EEF2FC;border:1px solid #DCE4F7;border-radius:12px;padding:10px 8px 10px 14px;text-align:left;}
+.invoice-number .label{display:block;font-size:11px;color:var(--muted);font-weight:500;margin-bottom:4px;}
+.invoice-number .value{display:block;font-size:15px;color:var(--primary);font-weight:700;}
+.copy-btn{border:1.5px solid var(--line);background:#fff;color:var(--muted);width:32px;height:32px;border-radius:9px;display:grid;place-items:center;cursor:pointer;font-size:13px;flex:0 0 auto;transition:background .15s ease,color .15s ease,border-color .15s ease;}
+.copy-btn:hover{border-color:var(--primary);color:var(--primary);}
+.copy-btn.copied{color:var(--success);}
+
+/* ---------- buttons ---------- */
+.customer-btn{margin-top:12px; border:0;border-radius:11px;background:var(--primary);color:#fff;font-weight:600;padding:13px 22px;cursor:pointer;min-width:180px;display:inline-flex;align-items:center;justify-content:center;gap:9px;font-size:14.5px;transition:transform .12s ease,background .15s ease;}
+.customer-btn:active{transform:translateY(1px) scale(.99);}
+
+/* ---------- info box ---------- */
+.info-box{margin-top:8px; box-shadow: 0 3px 10px rgba(1, 37, 135, 0.12);display:flex;align-items:center;gap:8px;text-align:left;background:#EEF2FC;border:1px solid #DCE4F7;border-radius:12px;padding:12px 14px;font-size:13px;color:var(--muted);max-width:290px;}
+.info-box strong{display:block;color:var(--ink);font-weight:700;margin-bottom:4px;}
+.info-box--success{background:#E9F7EF;border-color:#CDEBD9;}
+.info-icon{font-size:20px;color:var(--primary);}
+.info-box--success .info-icon{color:var(--success);}
+
+/* ---------- polished success animation ---------- */
+.card-badge--anim{animation:badgeIn .8s cubic-bezier(.16,.84,.44,1) both, badgeIdle 1.8s ease-in-out .65s infinite;}
+.card-badge--anim i{animation:checkIn .6s .2s cubic-bezier(.16,.84,.44,1) both;}
+.invoice-card{animation:cardIn .7s cubic-bezier(.16,.84,.44,1) both;}
+
+@keyframes badgeIdle{
+  0%{transform:translate(-50%,-50%) scale(.95);}
+  50%{transform:translate(-50%,-50%) scale(1.05);}
+  100%{transform:translate(-50%,-50%) scale(.95);}
+}
+@keyframes badgeIn{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(.45);}
+  65%{opacity:1;transform:translate(-50%,-50%) scale(1.08);}
+  100%{opacity:1;transform:translate(-50%,-50%) scale(1);}
+}
+@keyframes checkIn{
+  0%{opacity:0;transform:scale(.35) rotate(-18deg);}
+  70%{opacity:1;transform:scale(1.16) rotate(3deg);}
+  100%{opacity:1;transform:scale(1) rotate(0);}
+}
+@keyframes cardIn{
+  0%{opacity:.4;transform:translateY(8px) scale(.96);}
+  65%{opacity:1;transform:translateY(-2px) scale(1.015);}
+  100%{opacity:1;transform:translateY(0) scale(1);}
+}
+@media (max-width:420px){
+  .state{min-height:80vh;}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .state.active{animation:none;}
+  .card-badge--search{animation:none;transform:translate(-50%,-50%);}
+  .card-badge--search i,.card-badge--search::after,
+  .card-badge--anim,#successStage .invoice-card{animation:none;}
+  .ring-progress{transition:none;}
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js" defer></script>
+<script src="./invoice-engine.js?v=6"></script>
+</head>
+<body>
+<main class="customer-shell" aria-live="polite">
+  <!-- 1. LOADING -->
+  <section class="state active" id="stateLoading">
+    <div class="brand-wrap">
+      <img class="brand-mark" src="assets/logo/horizontal-logo.png" alt="J.Ali">
+    </div>
+    <div class="card-stage">
+      <div class="invoice-card">
+        <div class="invoice-card__top"></div>
+        <div class="invoice-pill"><i class="fa-solid fa-file-invoice"></i><span>INVOICE</span></div>
+        <div class="invoice-card__body">
+          <div class="skel skel--a"></div>
+          <div class="skel skel--b"></div>
+          <div class="skel skel--c"></div>
+          <div class="skel skel--b"></div>
+          <div class="skel skel--d"></div>
+        </div>
+        <div class="card-badge card-badge--search"><i class="fa-solid fa-magnifying-glass"></i></div>
+      </div>
+    </div>
+    <h1>Finding your invoice</h1>
+    <p>Please wait while we retrieve your invoice.</p>
+    <div class="info-box">
+      <div class="info-icon"><i class="fa-solid fa-lock"></i></div>
+      <div>This is a secure invoice link <br> from J.Ali...</div>
+    </div>
+  </section>
+
+  <!-- 2. INVOICE READY -->
+  <section class="state" id="stateInvoice">
+    <div class="brand-wrap">
+      <img class="brand-mark" src="assets/logo/horizontal-logo.png" alt="J.Ali">
+    </div>
+    <div class="card-stage">
+      <div class="invoice-card">
+        <div class="invoice-card__top"></div>
+        <div class="invoice-pill"><i class="fa-solid fa-file-invoice"></i><span>INVOICE</span></div>
+        <div class="invoice-card__body">
+          <div class="skel skel--a"></div>
+          <div class="skel skel--b"></div>
+          <div class="skel skel--c"></div>
+          <div class="skel skel--b"></div>
+          <div class="skel skel--d"></div>
+        </div>
+        <div class="card-badge card-badge--anim"><i class="fa-solid fa-file-circle-check"></i></div>
+      </div>
+    </div>
+    <div class="invoice-number">
+      <div>
+        <span class="label">Invoice Number</span>
+        <span class="value" id="invoiceTitle">&mdash;</span>
+      </div>
+      <button class="copy-btn" id="btnCopy" type="button" aria-label="Copy invoice number"><i class="fa-regular fa-copy"></i></button>
+    </div>
+    <h1>Your invoice is ready</h1>
+   <p>Download your invoice below and save your invoice for future reference.</p>
+    <button class="customer-btn" id="btnDownload"><i class="fa-solid fa-download"></i>Download Invoice</button>
+  </section>
+
+  <!-- 3. GENERATING PDF -->
+  <section class="state" id="stateGenerating">
+    <div class="card-stage">
+      <div class="ring-wrap">
+        <svg viewBox="0 0 232 232">
+          <circle class="ring-track" cx="116" cy="116" r="110"/>
+          <circle class="ring-progress" id="ringProgress" cx="116" cy="116" r="110"/>
+        </svg>
+        <div class="invoice-card">
+          <div class="invoice-card__top"></div>
+          <div class="invoice-pill"><i class="fa-solid fa-file-invoice"></i><span>INVOICE</span></div>
+          <div class="invoice-card__body">
+          <div class="skel skel--a"></div>
+          <div class="skel skel--b"></div>
+          <div class="skel skel--c"></div>
+          <div class="skel skel--b"></div>
+          <div class="skel skel--d"></div>
+          </div>
+          <div class="card-badge card-badge--percent" id="progressPercent">0%</div>
+        </div>
+      </div>
+    </div>
+    <h1>Preparing your invoice</h1>
+    <p>Your PDF is being generated.</p>
+    <div class="info-box">
+      <div class="info-icon"><i class="fa-regular fa-clock"></i></div>
+      <div>This may take a few seconds.<br>Please do not close this page.</div>
+    </div>
+  </section>
+
+  <!-- 4. DOWNLOAD SUCCESS -->
+  <section class="state" id="stateSuccess">
+    <div class="brand-wrap">
+      <img class="brand-mark" src="assets/logo/horizontal-logo.png" alt="J.Ali">
+    </div>
+    <div id="successStage">
+      <div class="card-stage">
+        <div class="invoice-card">
+          <div class="invoice-card__top"></div>
+          <div class="invoice-pill"><i class="fa-solid fa-file-invoice"></i><span>INVOICE</span></div>
+          <div class="invoice-card__body">
+          <div class="skel skel--a"></div>
+          <div class="skel skel--b"></div>
+          <div class="skel skel--c"></div>
+          <div class="skel skel--b"></div>
+          <div class="skel skel--d"></div>
+          </div>
+          <div class="card-badge card-badge--anim card-badge--success"><i class="fa-solid fa-check"></i></div>
+        </div>
+      </div>
+    </div>
+    <h1>Download started</h1>
+    <p>Your invoice download has been requested. Check your Downloads folder to find the PDF.</p>
+    <div class="info-box info-box--success">
+      <div class="info-icon"><i class="fa-solid fa-file-lines"></i></div>
+      <div>The PDF should appear in your device's Downloads folder. If it doesn't, check your browser's download status.</div>
+    </div>
+    <button class="customer-btn" id="btnDone"><i class="fa-solid fa-check"></i>Done</button>
+  </section>
+
+  <!-- 5. ERROR -->
+  <section class="state" id="stateError">
+    <div class="brand-wrap">
+      <img class="brand-mark" src="assets/logo/horizontal-logo.png" alt="J.Ali">
+    </div>
+    <div class="card-stage">
+      <div class="invoice-card">
+        <div class="invoice-card__top"></div>
+        <div class="invoice-pill"><i class="fa-solid fa-file-invoice"></i><span>INVOICE</span></div>
+        <div class="invoice-card__body">
+          <div class="skel skel--a"></div>
+          <div class="skel skel--b"></div>
+          <div class="skel skel--c"></div>
+          <div class="skel skel--b"></div>
+          <div class="skel skel--d"></div>
+        </div>
+        <div class="card-badge card-badge--anim card-badge--error"><i class="fa-solid fa-triangle-exclamation"></i></div>
+      </div>
+    </div>
+    <h1>Invoice unavailable</h1>
+    <p id="errorMessage">We couldn't find the invoice for this link. It may be invalid, expired, or has been removed.</p>
+    <button class="customer-btn" id="btnRetry"><i class="fa-solid fa-arrow-rotate-left"></i>Try Again</button>
+    <div class="info-box">
+      <div class="info-icon" style="font-size:24px;"><i class="fa-solid fa-circle-info"></i></div>
+      <div><strong>Need help?</strong>Contact J.Ali for support.</div>
+    </div>
+  </section>
+</main>
+<div id="pdfRenderWrap"><div id="pdfWrapper" class="pdf-wrapper-container"><div id="invoiceRoot" class="invoice-render"></div></div></div>
+<script>
+(function(){
+  'use strict';
+  let CONFIG=null, invoiceData=null, progressTimer=null, lastErrorCode='';
+  const $=id=>document.getElementById(id);
+  const reduceMotion=window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const RING_C=691.15;
+  const states=['stateLoading','stateInvoice','stateGenerating','stateSuccess','stateError'];
+  function showState(id){states.forEach(s=>$(s)?.classList.toggle('active',s===id));}
+  function getToken(){return new URLSearchParams(location.search).get('t')?.trim()||'';}
+  function formatBillDate(value){
+    /* Same DD-MM-YYYY style as index.html */
+    if(!value)return '';
+    const m=String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m?m[3]+'-'+m[2]+'-'+m[1]:String(value);
+  }
+  const TIMEOUT_MS=20000;
+  function codedError(code,msg){const e=new Error(msg);e.code=code;return e;}
+
+  /* fetch with a hard time limit. Any connection failure or timeout becomes a NETWORK_ERROR. */
+  async function timedFetch(url,opts){
+    if(navigator.onLine===false)throw codedError('NETWORK_ERROR','No internet connection.');
+    const ctrl=new AbortController();
+    const outer=opts&&opts.signal;
+    if(outer){ if(outer.aborted)ctrl.abort(); else outer.addEventListener('abort',()=>ctrl.abort(),{once:true}); }
+    let timedOut=false;
+    const timer=setTimeout(()=>{timedOut=true;ctrl.abort();},TIMEOUT_MS);
+    try{
+      return await fetch(url,Object.assign({},opts,{signal:ctrl.signal}));
+    }catch(e){
+      throw codedError('NETWORK_ERROR',timedOut?'The request timed out.':'Network connection failed.');
+    }finally{
+      clearTimeout(timer);
+    }
+  }
+
+  async function loadConfig(){
+    const r=await timedFetch('./config.json',{cache:'no-store'});
+    if(!r.ok)throw codedError('CONFIG_ERROR','Configuration file is not available.');
+    let json;
+    try{json=await r.json();}catch(e){throw codedError('CONFIG_ERROR','Configuration file is invalid.');}
+    if(!json||!json.supabase||!json.supabase.url||!json.supabase.anonKey)throw codedError('CONFIG_ERROR','Configuration is incomplete.');
+    CONFIG=json;
+    try{InvoiceEngine.configure(CONFIG);}catch(e){throw codedError('CONFIG_ERROR','Configuration could not be applied.');}
+  }
+
+  async function loadInvoice(){
+    const token=getToken();
+    if(!token)throw codedError('MISSING_TOKEN','This invoice link is missing the secure token.');
+
+    if(!CONFIG)await loadConfig(); /* throws NETWORK_ERROR or CONFIG_ERROR */
+
+    if(typeof supabase==='undefined'||!supabase.createClient){
+      /* Supabase library comes from a CDN: if it is missing, the network is the usual cause */
+      throw codedError(navigator.onLine===false?'NETWORK_ERROR':'CONFIG_ERROR','Supabase library did not load.');
+    }
+
+    let netFailed=false;
+    const client=supabase.createClient(CONFIG.supabase.url,CONFIG.supabase.anonKey,{
+      auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
+      global:{fetch:async(url,opts)=>{
+        try{return await timedFetch(url,opts);}
+        catch(e){netFailed=true;throw e;}
+      }}
+    });
+
+    let result;
+    try{
+      result=await client.rpc('get_public_invoice',{p_token:token});
+    }catch(e){
+      throw codedError('NETWORK_ERROR','Network connection failed.');
+    }
+    const {data,error}=result;
+
+    if(error){
+      if(netFailed||/failed to fetch|network|timed out|abort|load failed/i.test(error.message||''))
+        throw codedError('NETWORK_ERROR',error.message||'Network connection failed.');
+      /* Server answered but with an error (config/db/permission problem) */
+      throw codedError('SERVER_ERROR',error.message||'Server error.');
+    }
+
+    if(!data)throw codedError('INVALID_INVOICE','This invoice link is invalid, expired, or no longer available.');
+
+    invoiceData={
+      invoiceNumber:data.invoice_no||'AUTO',
+      dateStr:formatBillDate(data.bill_date),
+      customer:{name:data.customer_name||'',address:data.customer_address||'',mobile:data.customer_phone||''},
+      products:(data.items||[]).map(i=>({name:i.item_name||'',description:i.description||'',serial:i.serial||'',qty:i.qty,rate:i.price})),
+      notes:data.notes==null?null:data.notes,
+      includeNotesOnPdf:data.include_notes!==false,
+      showWatermark:data.show_watermark!==false,
+      showQr:data.show_qr!==false,
+      showSignature:data.show_signature!==false
+    };
+    $('invoiceTitle').textContent=invoiceData.invoiceNumber;
+    showState('stateInvoice');
+    InvoiceEngine.warmup(invoiceData);
+  }
+
+  /* ---------- simulated progress (UI only — does not affect PDF generation logic) ---------- */
+  function setProgress(pct){
+    const ring=$('ringProgress'), pctEl=$('progressPercent');
+    ring.style.strokeDashoffset=String(RING_C*(1-pct/100));
+    pctEl.textContent=Math.round(pct)+'%';
+  }
+  function startFakeProgress(){
+    let pct=0;
+    setProgress(0);
+    clearInterval(progressTimer);
+    progressTimer=setInterval(()=>{
+      pct=pct+(88-pct)*0.09+0.6;
+      if(pct>88)pct=88;
+      setProgress(pct);
+    },140);
+  }
+  function finishProgress(){
+    clearInterval(progressTimer);
+    const pctEl=$('progressPercent');
+    return new Promise(resolve=>{
+      let pct=parseFloat(pctEl.textContent)||88;
+      (function step(){
+        pct=pct+(100-pct)*0.35+1.5;
+        if(pct>=100){
+          setProgress(100);
+          setTimeout(resolve,120);
+          return;
+        }
+        setProgress(pct);
+        requestAnimationFrame(step);
+      })();
+    });
+  }
+
+  /* ---------- celebration confetti (visual only) ---------- */
+  function triggerConfetti(){
+    function shoot() {
+      confetti({
+        ticks: 75,
+        decay: 0.95,
+        scalar: 1.2,
+        spread: 360,
+        zIndex: 99999,
+        startVelocity: 20,
+        particleCount: 50,
+        origin: { y: 0.4 },
+        shapes: ['square', 'circle', 'star'],
+      });
+    }
+    setTimeout(shoot, 100);
+    setTimeout(shoot, 300);
+    setTimeout(shoot, 500);
+  }
+
+  async function downloadInvoice(){
+    if(!invoiceData)return;
+    showState('stateGenerating');
+    startFakeProgress();
+
+    try{
+      /* Same safety check as the employee app: images + stylesheet first. */
+      if(!(await InvoiceEngine.ensureAssetsAvailable(invoiceData)))throw new Error('Invoice images could not be loaded.');
+      const result=await InvoiceEngine.generatePdfBlob(invoiceData,'invoiceRoot','pdfWrapper');
+
+      /* Finish the visible progress first, then request the browser download. */
+      await finishProgress();
+
+      await Promise.resolve(InvoiceEngine.downloadBlob(result.blob,result.filename));
+
+      /* Browsers do not reliably expose whether the file was saved to disk. */
+      showState('stateSuccess');
+      triggerConfetti();
+    }catch(err){
+      clearInterval(progressTimer);
+      console.error('Invoice download failed:',err);
+      setErrorState('DOWNLOAD_ERROR');
+    }
+  }
+
+  async function copyInvoiceNumber(){
+    if(!invoiceData)return;
+    const btn=$('btnCopy');
+    try{
+      await navigator.clipboard.writeText(String(invoiceData.invoiceNumber));
+    }catch(e){
+      const ta=document.createElement('textarea');
+      ta.value=String(invoiceData.invoiceNumber);
+      ta.style.position='fixed';ta.style.left='-9999px';
+      document.body.appendChild(ta);ta.select();
+      try{document.execCommand('copy');}catch(e2){}
+      ta.remove();
+    }
+    const icon=btn.querySelector('i');
+    btn.classList.add('copied');
+    icon.className='fa-solid fa-check';
+    setTimeout(()=>{btn.classList.remove('copied');icon.className='fa-regular fa-copy';},1400);
+  }
+
+  function handleDone(){
+    /* Go back only one step. Jumping through the entire history stack can
+       unexpectedly take the customer away from the page they came from. */
+    if(history.length>1){
+      history.back();
+      return;
+    }
+
+    /* Browsers normally block window.close() for normal tabs, but it is a
+       harmless fallback for invoice windows/tabs opened by script. */
+    try{window.close();}catch(e){}
+  }
+
+  function setErrorState(code){
+    const title=$('stateError')?.querySelector('h1');
+    const message=$('errorMessage');
+    const retry=$('btnRetry');
+
+    lastErrorCode=code;
+    if(code==='DOWNLOAD_ERROR'){
+      if(title)title.textContent='Download failed';
+      if(message)message.textContent='Your internet connection seems slow or unstable. Please try again.';
+      if(retry)retry.innerHTML='<i class="fa-solid fa-arrow-rotate-left"></i>Try Again';
+    }else if(code==='INVALID_INVOICE'){
+      if(title)title.textContent='Invoice unavailable';
+      if(message)message.textContent='This invoice link is invalid, expired, or no longer available.';
+      if(retry)retry.innerHTML='<i class="fa-solid fa-arrow-rotate-left"></i>Check Again';
+    }else if(code==='MISSING_TOKEN'){
+      if(title)title.textContent='Link is incomplete';
+      if(message)message.textContent='The invoice link is missing details. Please open the full link again.';
+      if(retry)retry.innerHTML='<i class="fa-solid fa-arrow-rotate-left"></i>Rescan QR Code';
+    }else if(code==='NETWORK_ERROR'){
+      if(title)title.textContent='Network error';
+      if(message)message.textContent='Please check your internet connection and try again.';
+      if(retry)retry.innerHTML='<i class="fa-solid fa-arrow-rotate-left"></i>Retry';
+    }else{
+      /* CONFIG_ERROR, SERVER_ERROR and anything unexpected */
+      if(title)title.textContent='Unable to open invoice';
+      if(message)message.textContent='We could not open this invoice right now. Please contact J.Ali for support.';
+      if(retry)retry.innerHTML='<i class="fa-solid fa-arrow-rotate-left"></i>Retry';
+    }
+
+    showState('stateError');
+  }
+
+  async function start(){
+    invoiceData=null; 
+    showState('stateLoading');
+    try{
+      await loadInvoice();
+    }catch(err){
+      console.error(err);
+      setErrorState(['INVALID_INVOICE','MISSING_TOKEN','NETWORK_ERROR','CONFIG_ERROR','SERVER_ERROR'].includes(err.code)?err.code:'SERVER_ERROR');
+    }
+  }
+
+  $('btnDownload').addEventListener('click',downloadInvoice);
+  $('btnCopy').addEventListener('click',copyInvoiceNumber);
+  $('btnRetry').addEventListener('click',()=>{
+    /* Download / network problems: really retry. Bad or missing link: go back. */
+    if(lastErrorCode==='DOWNLOAD_ERROR'&&invoiceData)downloadInvoice();
+    else if(lastErrorCode==='NETWORK_ERROR'||lastErrorCode==='CONFIG_ERROR'||lastErrorCode==='SERVER_ERROR')start();
+    else handleDone();
+  });
+  $('btnDone').addEventListener('click',handleDone);
+  window.addEventListener('online',()=>{if(lastErrorCode==='NETWORK_ERROR'&&$('stateError')?.classList.contains('active'))start();});
+  start();
+})();
+</script>
+</body>
+</html>

@@ -1,32 +1,195 @@
 /* =========================================================
-   BILLING APP — service-worker.js
+   J.Ali TECH BILLING — service-worker.js
    Cache First Strategy
    Safe Activation Handoff
    ========================================================= */
 
-// Bump this string on every deploy — that's what makes the browser detect
-// a new worker and triggers the in-app "Update Available" modal.
-const CACHE_NAME = "v2.1.7";
-
-// Delay before taking control of already-open pages.
+const CACHE_NAME = "v1.0.0";
 const CLAIM_DELAY_MS = 2000;
 
 const STATIC_ASSETS = [
   "./index.html",
+  "./invoice-engine.js",
+  "./invoice-engine.css",
   "./config.json",
   "./manifest.json",
   "./assets/logo/logo.png",
-  "./assets/logo/horizontal-logo.png",
+  "./assets/logo/logo-qr.png",
   "./assets/logo/main-logo.png",
+  "./assets/logo/horizontal-logo.png",
   "./assets/signature/signature.png",
   "./assets/icons/app-icon.png",
+  "./assets/icons/app-icon-maskable.png",
   "./assets/icons/whatsapp-qr.jpeg",
 ];
 
+const CDN_HOSTS = [
+  "cdnjs.cloudflare.com",
+  "cdn.jsdelivr.net",
+  "fonts.googleapis.com",
+  "fonts.gstatic.com",
+];
+
+const CDN_SCRIPTS = [
+  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
+  "https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js",
+  "https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"
+];
+
+const CDN_STYLESHEETS = [
+  "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.3.1/css/all.min.css",
+  "https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;750;800&display=swap",
+  "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css"
+];
+
+// Files the app cannot start without. If any of these fail to download because
+// of a network problem during install, the install must FAIL so the previous
+// working version (and its cache) stays in use. Otherwise a half-filled new
+// cache replaces the old one and the next app start has to wait on the network
+// (the "loading... then Connection Trouble" problem). A 404 is skipped so a
+// missing optional file can never block updates forever.
+const CRITICAL_ASSETS = [
+  "./index.html",
+  "./config.json",
+  "./invoice-engine.js",
+  "./invoice-engine.css",
+  "./manifest.json",
+];
+
+async function cacheCriticalAssets(cache) {
+  await Promise.all(
+    CRITICAL_ASSETS.map(async (asset) => {
+      const response = await fetch(new Request(asset, { cache: "reload" }));
+      if (response.ok) {
+        await cache.put(asset, response);
+        return;
+      }
+      if (response.status === 404) {
+        console.warn(`Service worker: "${asset}" not found (404), skipping.`);
+        return;
+      }
+      throw new Error(`HTTP ${response.status} for ${asset}`);
+    })
+  );
+}
+
+async function precacheCdn(cache) {
+  await Promise.allSettled(
+    CDN_SCRIPTS.map(async (url) => {
+      const response = await fetch(
+        new Request(url, { mode: "no-cors" })
+      );
+      await cache.put(url, response);
+    })
+  );
+
+  await Promise.allSettled(
+    CDN_STYLESHEETS.map(async (url) => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const css = await response.clone().text();
+      await cache.put(url, response);
+
+      const fontUrls = new Set();
+
+      for (const match of css.matchAll(
+        /url\(\s*["']?([^"')]+)["']?\s*\)/g
+      )) {
+        const fontUrl = new URL(match[1], url).href;
+
+        if (/\.woff2(\?|#|$)/i.test(fontUrl)) {
+          fontUrls.add(fontUrl);
+        }
+      }
+
+      await Promise.allSettled(
+        [...fontUrls].map(async (fontUrl) => {
+          const fontResponse = await fetch(fontUrl);
+
+          if (fontResponse.ok) {
+            await cache.put(fontUrl, fontResponse);
+          }
+        })
+      );
+    })
+  );
+}
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "GET_VERSION") {
+    event.source.postMessage(CACHE_NAME);
+  }
+});
+
+/* =========================================================
+   WEB PUSH — reminders
+   Payload (JSON) is sent by the heartbeat edge function:
+   { title, body, tag, url }
+   ========================================================= */
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : "" };
+  }
+
+  // Every notification is labelled as a reminder.
+  const title = data.title ? `🔔 Reminder: ${data.title}` : "🔔 J.Ali Reminder";
+  const options = {
+    body: data.body || "You have a reminder due.",
+    icon: "./assets/icons/app-icon.png",
+    badge: "./assets/logo/logo-qr.png",
+    tag: data.tag || "jas-reminder",
+    renotify: true,
+    data: { url: data.url || "./index.html?mode=reminders" },
+    requireInteraction:true,
+    vibrate:[200, 100, 200],
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const target = new URL(
+    event.notification.data?.url || "./index.html?mode=reminders",
+    self.registration.scope
+  ).href;
+
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+
+      for (const client of windows) {
+        if (client.url.startsWith(self.registration.scope)) {
+          await client.focus();
+          client.postMessage({ type: "OPEN_REMINDERS" });
+          return;
+        }
+      }
+
+      await self.clients.openWindow(target);
+    })()
+  );
+});
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      Promise.allSettled(
+    caches.open(CACHE_NAME).then(async (cache) => {
+      // Throws (aborting the install) if a core file could not be downloaded.
+      await cacheCriticalAssets(cache);
+
+      await Promise.allSettled(
         STATIC_ASSETS.map((asset) =>
           cache.add(asset).catch((error) => {
             console.warn(
@@ -35,8 +198,22 @@ self.addEventListener("install", (event) => {
             );
           })
         )
-      )
-    )
+      );
+
+      await precacheCdn(cache).catch((error) => {
+        console.warn(
+          "Service worker failed to cache CDN files:",
+          error
+        );
+      });
+
+      // The app cannot log in without supabase-js. If it did not get cached,
+      // abort the install so the old working cache is kept and the browser
+      // retries the install later.
+      if (!(await cache.match(CDN_SCRIPTS[0]))) {
+        throw new Error("supabase-js was not cached; aborting install.");
+      }
+    })
   );
 
   self.skipWaiting();
@@ -63,40 +240,21 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// =========================================================
-// MESSAGE HANDLING — respond to the page asking for our version
-// =========================================================
-
-self.addEventListener("message", (event) => {
-  if (event.data && event.data.type === "GET_VERSION") {
-    // Reply on the MessageChannel port if the page provided one,
-    // otherwise reply to the tab that sent the message.
-    const respondTo = event.ports && event.ports[0]
-      ? event.ports[0]
-      : event.source;
-
-    respondTo?.postMessage(CACHE_NAME);
-  }
-});
-
 /**
  * CACHE FIRST
- *
- * 1. Check cache first.
- * 2. If cached → return cached copy immediately.
- * 3. If not cached → request from network.
- * 4. Save successful network response into cache.
+ * 1. Check cache.
+ * 2. Return cached response when available.
+ * 3. Otherwise fetch from network.
+ * 4. Cache successful or opaque responses.
  */
 function cacheFirst(request) {
   return caches.open(CACHE_NAME).then(async (cache) => {
     const cached = await cache.match(request);
 
-    // Cached copy exists → use it immediately.
     if (cached) {
       return cached;
     }
 
-    // No cached copy → get it from network.
     try {
       const response = await fetch(request);
 
@@ -109,29 +267,66 @@ function cacheFirst(request) {
       }
 
       return response;
-    } catch (error) {
-      if (error && error.name === "AbortError") {
-        return new Response(null, { status: 408, statusText: "Aborted" });
-      }
+    } catch {
       return Response.error();
     }
   });
 }
 
 self.addEventListener("fetch", (event) => {
-  // Only handle GET requests.
   if (event.request.method !== "GET") return;
 
+  if (
+    event.request.headers.get("X-Bypass-SW") === "1"
+  ) {
+    return;
+  }
+
   const url = new URL(event.request.url);
+
+  // =========================================================
+  // PUBLIC PROFILE AVATARS — CACHE FIRST
+  // =========================================================
+  // Only cache images from the public profile-avatars bucket.
+  // Other Supabase requests remain network-only.
+  if (
+    (url.hostname === "supabase.co" ||
+      url.hostname.endsWith(".supabase.co")) &&
+    url.pathname.includes(
+      "/storage/v1/object/public/profile-avatars/"
+    ) &&
+    (event.request.destination === "image" ||
+      /\.(png|jpe?g|gif|svg|webp|ico)$/i.test(
+        url.pathname
+      ))
+  ) {
+    event.respondWith(cacheFirst(event.request));
+    return;
+  }
+
+  // =========================================================
+  // SUPABASE — OTHER REQUESTS NETWORK ONLY
+  // =========================================================
+  if (
+    url.hostname === "supabase.co" ||
+    url.hostname.endsWith(".supabase.co")
+  ) {
+    return;
+  }
+
+  // =========================================================
+  // CDN SCRIPTS / STYLES / FONTS — CACHE FIRST
+  // =========================================================
+  if (CDN_HOSTS.includes(url.hostname)) {
+    event.respondWith(cacheFirst(event.request));
+    return;
+  }
 
   // =========================================================
   // MANIFEST.JSON — CACHE FIRST
   // =========================================================
   if (url.pathname.endsWith("manifest.json")) {
-    event.respondWith(
-      cacheFirst(event.request)
-    );
-
+    event.respondWith(cacheFirst(event.request));
     return;
   }
 
@@ -143,9 +338,39 @@ self.addEventListener("fetch", (event) => {
     url.pathname.endsWith(".html") ||
     url.pathname.endsWith("config.json")
   ) {
+    // invoice.html must NEVER be cached.
+    if (
+      url.pathname.endsWith("/invoice.html") ||
+      url.pathname === "/invoice.html"
+    ) {
+      event.respondWith(fetch(event.request));
+      return;
+    }
+
     event.respondWith(
-      cacheFirst(event.request).then(async (response) => {
+      (async () => {
+        // Navigations such as "/" or "index.html?mode=reminders" never match
+        // the cached "./index.html" key exactly, so they used to go to the
+        // network first and could hang on a weak connection. Serve the cached
+        // app shell right away instead (the page reads its own URL params).
+        if (event.request.mode === "navigate") {
+          const shellCache = await caches.open(CACHE_NAME);
+          const shell =
+            (await shellCache.match(event.request, { ignoreSearch: true })) ||
+            (await shellCache.match("./index.html"));
+          if (shell) return shell;
+        }
+        return cacheFirst(event.request);
+      })().then(async (response) => {
         if (response && response.ok) {
+          return response;
+        }
+
+        const isNavigationOrHtml =
+          event.request.mode === "navigate" ||
+          url.pathname.endsWith(".html");
+
+        if (!isNavigationOrHtml) {
           return response;
         }
 
@@ -165,29 +390,25 @@ self.addEventListener("fetch", (event) => {
   // JAVASCRIPT + CSS — CACHE FIRST
   // =========================================================
   if (
-    url.pathname.endsWith(".js") ||
-    url.pathname.endsWith(".css") ||
-    event.request.destination === "script" ||
-    event.request.destination === "style"
+    url.origin === self.location.origin &&
+    (url.pathname.endsWith(".js") ||
+      url.pathname.endsWith(".css") ||
+      event.request.destination === "script" ||
+      event.request.destination === "style")
   ) {
-    event.respondWith(
-      cacheFirst(event.request)
-    );
-
+    event.respondWith(cacheFirst(event.request));
     return;
   }
 
   // =========================================================
-  // FONTS — CACHE FIRST
+  // FONTS — CACHE FIRST (SAME ORIGIN)
   // =========================================================
   if (
-    event.request.destination === "font" ||
-    /\.(woff2?|ttf|otf|eot)$/i.test(url.pathname)
+    url.origin === self.location.origin &&
+    (event.request.destination === "font" ||
+      /\.(woff2?|ttf|otf|eot)$/i.test(url.pathname))
   ) {
-    event.respondWith(
-      cacheFirst(event.request)
-    );
-
+    event.respondWith(cacheFirst(event.request));
     return;
   }
 
@@ -200,10 +421,7 @@ self.addEventListener("fetch", (event) => {
       url.pathname
     )
   ) {
-    event.respondWith(
-      cacheFirst(event.request)
-    );
-
+    event.respondWith(cacheFirst(event.request));
     return;
   }
 
@@ -211,8 +429,6 @@ self.addEventListener("fetch", (event) => {
   // EVERYTHING ELSE — NETWORK ONLY
   // =========================================================
   event.respondWith(
-    fetch(event.request).catch(() =>
-      Response.error()
-    )
+    fetch(event.request).catch(() => Response.error())
   );
 });
