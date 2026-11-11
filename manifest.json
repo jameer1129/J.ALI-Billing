@@ -1,6 +1,6 @@
 {
   "name": "J.ALI Billing",
-  "short_name": "J.ALI Billing",
+  "short_name": "J.ALI",
   "description": "Professional billing software for J.ALI — generate invoices in seconds.",
   "start_url": "./index.html",
   "scope": "./",
