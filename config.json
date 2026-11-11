@@ -31,7 +31,7 @@
     "mainLogo": "assets/logo/logo.png",
     "watermark": "assets/logo/main-logo.png",
     "signature": "assets/signature/signature.png",
-    "scannerQr": "assets/icons/pay-qr.jpeg"
+    "scannerQr": "assets/icons/pay-qr.png"
   },
   "supabase": {
     "url": "https://pqyzcsjitfomdkmarplg.supabase.co",
@@ -60,7 +60,7 @@
     "authLine": "Authorized Signature"
   },
   "scanner": {
-    "scannerCaption": "Tap to Pay",
+    "scannerCaption": "CLICK TO PAY",
     "linkEnabled": true,
     "linkUrl": ""
   },

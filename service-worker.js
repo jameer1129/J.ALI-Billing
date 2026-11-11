@@ -4,7 +4,7 @@
    Safe Activation Handoff
    ========================================================= */
 
-const CACHE_NAME = "v1.0.4";
+const CACHE_NAME = "v1.0.3";
 const CLAIM_DELAY_MS = 2000;
 
 const STATIC_ASSETS = [
@@ -20,7 +20,7 @@ const STATIC_ASSETS = [
   "./assets/signature/signature.png",
   "./assets/icons/app-icon.png",
   "./assets/icons/app-icon-maskable.png",
-  "./assets/icons/whatsapp-qr.jpeg",
+  "./assets/icons/pay-qr.png",
 ];
 
 const CDN_HOSTS = [
