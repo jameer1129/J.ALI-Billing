@@ -201,6 +201,7 @@
   font-weight:700;
   text-transform:uppercase;
 }
+.inv-summary__row.service-charge{color:var(--inv-primary);}
 .inv-summary__row span, .inv-summary__row b{word-break:break-word;overflow-wrap:break-word;}
 .inv-summary__total{
   background:var(--inv-primary);

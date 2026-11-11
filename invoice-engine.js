@@ -205,7 +205,7 @@
     const showNotes=c.display?.showNotes!==false&&notesText&&d.includeNotesOnPdf;
     const notesHtml=showNotes?`<div class="inv-notes"><div class="inv-notes__label"><i class="fa-solid fa-clipboard-list" style="font-size:16px"></i> NOTES</div><div class="inv-notes__text">${escapeHtml(notesText)}</div></div>`:'';
 
-    const summaryHtml=`<div class="inv-summary">${c.display?.showTotalItems?`<div class="inv-summary__row"><span>TOTAL ITEMS</span><b>${totalItems}</b></div>`:''}${c.display?.showTotalQuantity?`<div class="inv-summary__row"><span>TOTAL QUANTITY</span><b>${totalQty}</b></div>`:''}${serviceCharge!==null?`<div class="inv-summary__row"><span>SERVICE CHARGE</span><b>${formatCurrency(serviceCharge,true)}</b></div>`:''}<div class="inv-summary__total"><span class="label" style="font-size:16px;">GRAND TOTAL</span><span class="value">${formatCurrency(grandTotal,true)}</span></div></div>`;
+    const summaryHtml=`<div class="inv-summary">${c.display?.showTotalItems?`<div class="inv-summary__row"><span>TOTAL ITEMS</span><b>${totalItems}</b></div>`:''}${c.display?.showTotalQuantity?`<div class="inv-summary__row"><span>TOTAL QUANTITY</span><b>${totalQty}</b></div>`:''}${serviceCharge!==null?`<div class="inv-summary__row service-charge"><span>SERVICE CHARGE</span><b>${formatCurrency(serviceCharge,true)}</b></div>`:''}<div class="inv-summary__total"><span class="label" style="font-size:16px;">GRAND TOTAL</span><span class="value">${formatCurrency(grandTotal,true)}</span></div></div>`;
 
     const watermarkHtml=d.showWatermark&&c.display?.showWatermark!==false?`<img src="${escapeHtml(assetSrc(c.assets?.watermark||''))}" class="inv-watermark" crossOrigin="anonymous" alt="Watermark Background">`:'';
 
