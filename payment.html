@@ -258,8 +258,8 @@ button{cursor:pointer;background:none;border:none;}
 
     <div class="methods">
       <!-- Scan & Pay -->
-      <div class="method is-open" id="mScan">
-        <button class="method__head" type="button" aria-expanded="true" aria-controls="bScan" data-toggle="mScan">
+      <div class="method" id="mScan">
+        <button class="method__head" type="button" aria-expanded="false" aria-controls="bScan" data-toggle="mScan">
           <span class="method__icon"><i class="fa-solid fa-qrcode"></i></span>
           <span class="method__copy">
             <span class="method__title">Scan &amp; Pay</span>
@@ -303,7 +303,7 @@ button{cursor:pointer;background:none;border:none;}
           <span class="method__icon"><i class="fa-solid fa-building-columns"></i></span>
           <span class="method__copy">
             <span class="method__title">Bank Transfer</span>
-            <span class="method__desc" id="bankDesc">Show bank account details and copy options.</span>
+            <span class="method__desc" id="bankDesc">Show bank account details.</span>
           </span>
           <i class="fa-solid fa-chevron-right method__chev" id="bankChev"></i>
         </button>
@@ -314,7 +314,7 @@ button{cursor:pointer;background:none;border:none;}
       </div>
     </div>
 
-    <p class="secure"><i class="fa-solid fa-lock"></i> Securely verify the payment with your payment provider or bank.</p>
+    <p class="secure"><i class="fa-solid fa-lock"></i> Securely verify the payment with your payment provider.</p>
     <p class="thanks" id="thanksLine"></p>
 
     <button class="btn btn--primary done" id="btnDone" type="button"><i class="fa-solid fa-check"></i> Done</button>
