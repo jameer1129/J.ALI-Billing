@@ -4,7 +4,7 @@
    Safe Activation Handoff
    ========================================================= */
 
-const CACHE_NAME = "v1.0.3";
+const CACHE_NAME = "v1.0.5";
 const CLAIM_DELAY_MS = 2000;
 
 const STATIC_ASSETS = [
@@ -338,10 +338,14 @@ self.addEventListener("fetch", (event) => {
     url.pathname.endsWith(".html") ||
     url.pathname.endsWith("config.json")
   ) {
-    // invoice.html must NEVER be cached.
+    // invoice.html and payment.html must NEVER be cached.
+    // (payment.html is opened with a different ?amount= every time, so
+    // cache-first would also store a separate copy for every amount.)
     if (
       url.pathname.endsWith("/invoice.html") ||
-      url.pathname === "/invoice.html"
+      url.pathname === "/invoice.html" ||
+      url.pathname.endsWith("/payment.html") ||
+      url.pathname === "/payment.html"
     ) {
       event.respondWith(fetch(event.request));
       return;

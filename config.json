@@ -60,9 +60,25 @@
     "authLine": "Authorized Signature"
   },
   "scanner": {
-    "scannerCaption": "CLICK TO PAY",
+    "scannerCaption": "Click to Pay",
     "linkEnabled": true,
-    "linkUrl": ""
+    "linkUrl": "./payment.html",
+    "linkAmountParam": "amount",
+    "linkInvoiceParam": "inv"
+  },
+  "payment": {
+    "pageTitle": "Payment Portal",
+    "payeeName": "J.Ali Electronics & Electricals",
+    "upiId": "9700270006@axl",
+    "qrLogo": "assets/logo/logo-qr.png",
+    "bank": {
+      "accountName": "Shaik Jakeer Ali",
+      "accountNumber": "30869481273",
+      "ifsc": "SBIN0003264",
+      "bankName": "State Bank of India",
+      "branch": "VETAPALEM",
+      "accountType": "Savings"
+    }
   },
   "services": [
     {
