@@ -1266,7 +1266,9 @@ where public_token is not null;
 --   }
 -- });
 
--- Heartbeat, unverified-user and expired-bill, notificaton push cleanup
+-- ------------------------------------------------------------
+-- 3.  Heartbeat, unverified-user and expired-bill, notificaton push cleanup
+-- ------------------------------------------------------------
 
 -- import { createClient } from "npm:@supabase/supabase-js@2";
 -- import webpush from "npm:web-push@3.6.7";
@@ -1312,6 +1314,7 @@ where public_token is not null;
 -- const PUSH_TTL_SECONDS = 12 * 60 * 60;
 -- const REMINDER_BATCH = 1000;
 -- const PUSH_CONCURRENCY = 10;
+-- const MAX_LINES_IN_GROUP = 4; // reminders listed in one grouped notification
 
 -- type Status = "success" | "partial" | "failed";
 
@@ -1321,7 +1324,7 @@ where public_token is not null;
 --   today: string | null;
 --   pausedCount: number;
 --   dueCount: number;
---   sentCount: number;
+--   sentCount: number; // reminders covered by a successful push
 --   noDeviceCount: number;
 --   failedCount: number; // REAL failures only (never 404/410)
 --   clearedDevices: number; // dead devices (user turned off / reset notifications)
@@ -1378,7 +1381,7 @@ where public_token is not null;
 --       result.pausedCount = paused?.length ?? 0;
 --     }
 
---     // 2. push
+--     // 2. find due reminders
 --     const { data: rows, error: remindersError } = await supabaseAdmin
 --       .from("reminders")
 --       .select("id,user_id,title,description,remember_date,last_activity")
@@ -1431,37 +1434,67 @@ where public_token is not null;
 --       (profiles ?? []).map((p) => [p.id as string, p.push_id])
 --     );
 
---     const deadUsers = new Set<string>();
---     const failureMessages: string[] = [];
+--     // 3. group due reminders by user (already ordered oldest first)
+--     type Due = (typeof due)[number];
+--     const byUser = new Map<string, Due[]>();
+--     for (const r of due) {
+--       const list = byUser.get(r.user_id) ?? [];
+--       list.push(r);
+--       byUser.set(r.user_id, list);
+--     }
 
---     const sendOne = async (r: (typeof due)[number]) => {
---       const subscription = subscriptions.get(r.user_id);
-
---       if (!subscription) {
---         result.noDeviceCount++;
---         return;
---       }
-
---       // A device already found dead earlier in this run: skip, don't push again
---       if (deadUsers.has(r.user_id)) return;
-
---       const overdueDays = Math.round(
+--     const overdueOf = (r: Due) =>
+--       Math.round(
 --         (Date.parse(todayIso) - Date.parse(r.remember_date)) / 86400000
 --       );
 
---       const base =
---         r.description ||
---         (overdueDays > 0
---           ? `Overdue by ${overdueDays} day${overdueDays === 1 ? "" : "s"}`
---           : "Due today");
+--     const deadUsers = new Set<string>();
+--     const failureMessages: string[] = [];
+
+--     // ONE push per user per run. This avoids handing the phone two
+--     // notifications at the same instant (the phone could drop one of them).
+--     const sendForUser = async ([userId, items]: [string, Due[]]) => {
+--       const subscription = subscriptions.get(userId);
+
+--       if (!subscription) {
+--         result.noDeviceCount += items.length;
+--         return;
+--       }
+
+--       let title: string;
+--       let body: string;
+
+--       if (items.length === 1) {
+--         const r = items[0];
+--         const d = overdueOf(r);
+--         title = r.title;
+--         body =
+--           r.description ||
+--           (d > 0 ? `Overdue by ${d} day${d === 1 ? "" : "s"}` : "Due today");
+--       } else {
+--         const lines = items.slice(0, MAX_LINES_IN_GROUP).map((r) => {
+--           const d = overdueOf(r);
+--           return `• ${r.title}${d > 0 ? ` (${d}d overdue)` : ""}`;
+--         });
+--         if (items.length > MAX_LINES_IN_GROUP) {
+--           lines.push(`+ ${items.length - MAX_LINES_IN_GROUP} more`);
+--         }
+--         title = `${items.length} things due`;
+--         body = lines.join("\n");
+--       }
+
+--       if (items.some((r) => overdueOf(r) >= OVERDUE_PAUSE_DAYS)) {
+--         body += " · Last reminder for one of these. It will be paused tomorrow.";
+--       }
 
 --       const payload = JSON.stringify({
---         title: r.title,
---         body:
---           overdueDays >= OVERDUE_PAUSE_DAYS
---             ? `${base} · Last reminder. It will be paused tomorrow.`
---             : base,
---         tag: `reminder-${r.id}`,
+--         title,
+--         body,
+--         // Always per user: the next run replaces the previous notification
+--         // in the tray (the service worker uses renotify:true, so it still
+--         // buzzes again).
+--         tag: `reminders-${userId}`,
+--         ids: items.map((r) => r.id), // reminder primary keys
 --         url: "./index.html?mode=reminders",
 --       });
 
@@ -1471,29 +1504,32 @@ where public_token is not null;
 --           payload,
 --           { TTL: PUSH_TTL_SECONDS, urgency: "high" }
 --         );
---         result.sentCount++;
+--         result.sentCount += items.length;
 --       } catch (error) {
 --         const code = (error as { statusCode?: number }).statusCode;
 
 --         if (code === 404 || code === 410) {
 --           // Normal: user turned off / reset notifications, or browser removed
 --           // the subscription. NOT a failure. Device is cleared below.
---           deadUsers.add(r.user_id);
---           console.log(`Dead subscription (${code}) for user ${r.user_id}`);
+--           deadUsers.add(userId);
+--           console.log(`Dead subscription (${code}) for user ${userId}`);
 --         } else {
 --           // Real failure: push service down, bad VAPID keys, network, etc.
---           result.failedCount++;
+--           result.failedCount += items.length;
 --           failureMessages.push(`${code ?? "error"}`);
 --           console.error("Push failed:", code, error);
 --         }
 --       }
 --     };
 
---     for (let i = 0; i < due.length; i += PUSH_CONCURRENCY) {
---       await Promise.all(due.slice(i, i + PUSH_CONCURRENCY).map(sendOne));
+--     const entries = [...byUser.entries()];
+--     for (let i = 0; i < entries.length; i += PUSH_CONCURRENCY) {
+--       await Promise.all(
+--         entries.slice(i, i + PUSH_CONCURRENCY).map(sendForUser)
+--       );
 --     }
 
---     // Clear dead devices so the Reminders tab shows "No device activated"
+--     // 4. clear dead devices so the Reminders tab shows "No device activated"
 --     if (deadUsers.size) {
 --       const { error: clearError } = await supabaseAdmin
 --         .from("profiles")
@@ -1539,7 +1575,6 @@ where public_token is not null;
 --   }
 
 --   try {
-
 --     // 2. DELETE UNVERIFIED USERS OLDER THAN 7 DAYS
 --     const cutoff = new Date(Date.now() - USER_RETENTION_MS);
 --     const deleted: string[] = [];
@@ -1779,3 +1814,61 @@ where public_token is not null;
 --             --url "https://tdytfzqtaxijlbmfnxee.supabase.co/functions/v1/supabase-heartbeat" \
 --             --header "apikey: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}" \
 --             --header "Content-Type: application/json"
+
+------------------------------------------------------------------
+-- gemini-session
+------------------------------------------------------------------
+-- import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+-- const cors = {
+--   'Access-Control-Allow-Origin': '*',
+--   'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
+--   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+--   'Content-Type': 'application/json',
+--   'Cache-Control': 'no-store',
+-- };
+-- const reply = (status: number, body: Record<string, unknown>) =>
+--   new Response(JSON.stringify(body), { status, headers: cors });
+
+-- Deno.serve(async (req) => {
+--   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+--   if (req.method !== 'POST') return reply(405, { error: 'Method not allowed' });
+
+--   const url = Deno.env.get('SUPABASE_URL');
+--   const publishable = Deno.env.get('SUPABASE_ANON_KEY');
+--   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+--   const geminiKey = Deno.env.get('GEMINI_API_KEY');
+--   if (!url || !publishable || !serviceKey || !geminiKey)
+--     return reply(500, { error: 'Voice service is not configured' });
+
+--   const bearer = req.headers.get('Authorization') || '';
+--   if (!bearer.startsWith('Bearer ')) return reply(401, { error: 'Sign in required' });
+--   const jwt = bearer.slice(7);
+--   const authClient = createClient(url, publishable, { auth: { persistSession: false } });
+--   const { data: userData, error: authError } = await authClient.auth.getUser(jwt);
+--   if (authError || !userData.user) return reply(401, { error: 'Session expired. Sign in again.' });
+
+--   const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
+--   const { data: profile, error: profileError } = await admin
+--     .from('profiles').select('status').eq('id', userData.user.id).single();
+--   if (profileError || profile?.status !== 'approved')
+--     return reply(403, { error: 'Account is not approved for voice access' });
+
+--   const expires = new Date(Date.now() + 60 * 60_000).toISOString();
+--   const response = await fetch('https://generativelanguage.googleapis.com/v1alpha/auth_tokens', {
+--     method: 'POST',
+--     headers: { 'x-goog-api-key': geminiKey, 'Content-Type': 'application/json' },
+--     body: JSON.stringify({
+--       uses: 1,
+--       expireTime: expires,
+--       newSessionExpireTime: expires,
+--     }),
+--   });
+--   if (!response.ok) {
+--     console.error('Gemini token creation failed', response.status, await response.text());
+--     return reply(502, { error: 'Could not create Gemini Live session token' });
+--   }
+--   const data = await response.json();
+--   if (typeof data.name !== 'string') return reply(502, { error: 'Gemini token response invalid' });
+--   return reply(200, { token: data.name });
+-- });

@@ -40,6 +40,12 @@
    "push": {
     "vapidPublicKey": "BLyQn5iHl78_ayThCnjXkRQNf5dZgVE8EBqLWrV8pgtryqhu9D9KH8J4g_kJMEM7JHDCRdWw7RU3T2p1SHk42yM"
   },
+   "ai": {
+    "enabled": true,
+    "primaryModel":  "gemini-3.8-live",
+    "fallbackModel": "gemini-3.1-flash-live-preview",
+    "voiceName": ["Kore" , "Charon" , "Aoede" , "Puck"]
+  },
   "display": {
     "showWatermark": true,
     "showQr": true,

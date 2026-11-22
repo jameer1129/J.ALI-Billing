@@ -4,21 +4,23 @@
    Safe Activation Handoff
    ========================================================= */
 
-const CACHE_NAME = "v1.0.3";
+const CACHE_VERSION = "v2.0.0";
+const CACHE_PREFIX = "j.ali-billing-";
+const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
 const CLAIM_DELAY_MS = 2000;
 
 const STATIC_ASSETS = [
   "./index.html",
+  "./config.json",
   "./invoice-engine.js",
   "./invoice-engine.css",
-  "./config.json",
   "./manifest.json",
+  "./assets/icons/app-icon.png",
   "./assets/logo/logo.png",
   "./assets/logo/logo-qr.png",
   "./assets/logo/main-logo.png",
   "./assets/logo/horizontal-logo.png",
   "./assets/signature/signature.png",
-  "./assets/icons/app-icon.png",
   "./assets/icons/app-icon-maskable.png",
   "./assets/icons/pay-qr.png",
 ];
@@ -122,14 +124,16 @@ async function precacheCdn(cache) {
 
 self.addEventListener("message", (event) => {
   if (event.data?.type === "GET_VERSION") {
-    event.source.postMessage(CACHE_NAME);
+    event.source.postMessage(CACHE_VERSION);
   }
 });
 
 /* =========================================================
    WEB PUSH — reminders
    Payload (JSON) is sent by the heartbeat edge function:
-   { title, body, tag, url }
+   { title, body, tag, ids, url }
+   One push per user per run. tag is always "reminders-<userId>", so the
+   next run REPLACES the previous notification (renotify buzzes again).
    ========================================================= */
 self.addEventListener("push", (event) => {
   let data = {};
@@ -145,9 +149,12 @@ self.addEventListener("push", (event) => {
     body: data.body || "You have a reminder due.",
     icon: "./assets/icons/app-icon.png",
     badge: "./assets/logo/logo-qr.png",
-    tag: data.tag || "jas-reminder",
+    tag: data.tag || "reminder",
     renotify: true,
-    data: { url: data.url || "./index.html?mode=reminders" },
+    data: {
+      url: data.url || "./index.html?mode=reminders",
+      ids: data.ids || [],
+    },
     requireInteraction:true,
     vibrate:[200, 100, 200],
   };
@@ -173,7 +180,10 @@ self.addEventListener("notificationclick", (event) => {
       for (const client of windows) {
         if (client.url.startsWith(self.registration.scope)) {
           await client.focus();
-          client.postMessage({ type: "OPEN_REMINDERS" });
+          client.postMessage({
+            type: "OPEN_REMINDERS",
+            ids: event.notification.data?.ids || [],
+          });
           return;
         }
       }
@@ -226,7 +236,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key !== CACHE_NAME)
+            .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
             .map((key) => caches.delete(key))
         )
       )
