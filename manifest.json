@@ -1,7 +1,7 @@
 {
-  "name": "JAS Tech Billing",
-  "short_name": "JAS Tech",
-  "description": "Generate professional JAS Tech invoices in seconds with our easy-to-use billing app. Create, customize, and send invoices effortlessly.",
+  "name": "J.ALI Billing",
+  "short_name": "J.ALI",
+  "description": "Professional billing software for J.ALI — generate invoices in seconds.",
   "start_url": "./index.html",
   "scope": "./",
   "id": "./",
