@@ -55,18 +55,19 @@
   const tokenUsable = () => !!voiceToken && Date.now() < voiceTokenUntil - TOKEN_MARGIN_MS;
   // Blue remains blue while idle. An expired token is refreshed only on the next tap.
   let tokenPreparing = true, tokenReady = false, readyAnimationTimer = null, pendingStart = false;
+  let tokenFailed = false;   // true after every preparation attempt failed: the orb shows Error instead of looking like it is still loading
   // One face per state: active states use the live status; idle uses the token state (preparing / ready).
   function paintFace() {
     const w = ui.sheet; if (!w) return;
     const s = w.dataset.s, live = (active || starting || s === 'error') && s !== 'idle' && s !== 'ended';
-    w.dataset.f = live ? (s === 'transition' ? 'thinking' : s) : (w.dataset.token === 'ready' ? 'ready' : 'preparing');
+    w.dataset.f = live ? (s === 'transition' ? 'thinking' : s) : (tokenFailed ? 'error' : (w.dataset.token === 'ready' ? 'ready' : 'preparing'));
   }
   function paintTokenState() {
     if (!ui.sheet || active || starting) return;
     const next = tokenPreparing || !tokenReady ? 'waiting' : 'ready';
     const previous = ui.sheet.dataset.token;
     ui.sheet.dataset.token = next;
-    ui.orb.title = next === 'waiting' ? 'AI is preparing. Please wait.' : 'Start voice assistant';
+    ui.orb.title = next === 'waiting' ? (tokenFailed ? 'AI could not prepare. Tap to try again.' : 'AI is preparing. Please wait.') : 'Start voice assistant';
     ui.orb.setAttribute('aria-label', ui.orb.title);
     paintFace();
     if (next === 'ready' && previous !== 'ready') {
@@ -90,13 +91,15 @@
     }
     tokenPreparing = true;
     tokenReady = false;
+    tokenFailed = false;
     paintTokenState();
-    fetchToken().catch(() => {});
+    fetchToken().catch(() => { if (tokenFailed) flashError(); });
   }
   // One request at a time: callers share the same in-flight promise.
   // Retry transient token failures twice (3 attempts total), with short backoff.
   function fetchToken() {
     if (tokenPromise) return tokenPromise;
+    tokenFailed = false;
     const generation = tokenGeneration;
     const p = (async () => {
       try {
@@ -121,12 +124,14 @@
         tokenEverObtained = true;
         tokenPreparing = false;
         tokenReady = true;
+        tokenFailed = false;
         paintTokenState();
         return token;
       } catch (error) {
         if (generation === tokenGeneration) {
           tokenPreparing = true;
           tokenReady = false;
+          tokenFailed = true;   // all attempts failed (or sign-in is needed): show Error and retry on the next tap
         }
         throw error;
       } finally {
@@ -314,6 +319,7 @@
 /* status pill */
 .jv-state{position:absolute;left:50%;bottom:-46px;transform:translateX(-50%);display:none;align-items:center;gap:7px;white-space:nowrap;padding:6px 11px;border:1px solid color-mix(in srgb,var(--c2) 42%,var(--line,#64748b));border-radius:999px;background:color-mix(in srgb,var(--surface,#1e293b) 88%,var(--c2) 12%);color:var(--text,#f8fafc);font-weight:650;box-shadow:0 5px 18px #0002;pointer-events:none}
 .jv-active .jv-state{display:flex}
+.jv-wrap[data-s=error] .jv-state{display:flex}   /* failed attempts show the Error label even though no session is active */
 .jv-state-icon{color:var(--c2);font-size:12px}
 .jv-state-dots{display:inline-flex;gap:3px}
 .jv-state-dots b{width:3px;height:3px;border-radius:50%;background:var(--c2);animation:jvDot 1.1s ease-in-out infinite}
@@ -415,7 +421,7 @@
     ui.end.addEventListener('click',()=>stopSession('idle'));
     window.addEventListener('pagehide',()=>stopSession('idle', true));
     document.addEventListener('visibilitychange',()=>{
-      if(document.hidden&&(active||starting))stopSession('idle');
+      if(document.hidden)muteForBackground();else resumeFromBackground();   // leaving the page only MUTES; coming back unmutes
       wrap.classList.toggle('jv-paused',document.hidden);   // freeze every animation while the app is hidden
       if(!document.hidden){ wrap.style.display='none'; void wrap.offsetHeight; wrap.style.display=''; }   // fresh repaint on return
     });
@@ -438,6 +444,39 @@
     if(muted){lastUnmutedStatus=curStatus();setStatus('muted');}
     else{activity();setStatus(lastUnmutedStatus==='speaking'&&sources.size?'speaking':'listening');}
   }
+  // Leaving the page (another browser tab, another app, a locked screen) only MUTES the assistant, and
+  // coming back unmutes it. A mute the user set by hand is left alone. If the user stays away longer than
+  // the normal idle limit, the session ends exactly as it does for silence.
+  let autoMuted = false, hiddenAt = 0;
+  function muteForBackground() {
+    if (!active && !starting) return;
+    hiddenAt = Date.now();
+    if (muted) return;                                   // already muted by the user: do not touch it
+    lastUnmutedStatus = curStatus();
+    muted = true; autoMuted = true;
+    setStatus('muted');
+  }
+  function resumeFromBackground() {
+    const away = hiddenAt ? Date.now() - hiddenAt : 0;
+    hiddenAt = 0;
+    if (!active && !starting) { autoMuted = false; return; }
+    // Phone timers can be frozen while hidden, so check the time away here as well as in the idle monitor.
+    if (away > IDLE_MS) {
+      autoMuted = false;
+      toast('Voice assistant stopped after a minute of silence.', 'info'); stopSession('idle'); return;
+    }
+    // Phones can suspend audio or take the microphone away in the background.
+    for (const c of [inCtx, outCtx]) { if (c && c.state !== 'running') c.resume().catch(() => {}); }
+    if (micStream && micStream.getTracks().some((t) => t.readyState === 'ended')) {
+      autoMuted = false;
+      toast('The microphone was turned off by the device. Please start the assistant again.', 'warning'); stopSession('idle'); return;
+    }
+    holdScreenAwake();
+    if (autoMuted) {
+      autoMuted = false; muted = false; activity();
+      setStatus(lastUnmutedStatus === 'speaking' && sources.size ? 'speaking' : 'listening');
+    }
+  }
   let transitionTimer=null;
   let settledVoiceState='idle';
   let pendingVoiceState=null;
@@ -447,6 +486,17 @@
     const item=labels[s]||['','fa-circle'];
     state.querySelector('.jv-state-label').textContent=item[0];
     state.querySelector('.jv-state-icon').className='jv-state-icon fa-solid '+item[1];
+  }
+  // Shows the "Error" status (orb and label) for a few seconds, then the orb returns to its normal idle look.
+  let errorClearTimer=null;
+  function flashError(){
+    if(!ui.sheet||active||starting)return;
+    setStatus('error');
+    clearTimeout(errorClearTimer);
+    errorClearTimer=setTimeout(()=>{
+      errorClearTimer=null;
+      if(!active&&!starting&&ui.sheet?.dataset.s==='error'){setStatus('idle');paintTokenState();}
+    },8000);
   }
   function setStatus(s){
     if(!ui.sheet)return;
@@ -490,8 +540,8 @@
   const curStatus=()=>ui.sheet.dataset.s;
   async function openSheet(){
     if(currentTab()==='admin'||active||starting||pendingStart)return;
-    if (tokenPreparing || !tokenReady) {
-      // A failed preparation has no in-flight request; tapping retries it.
+    if ((tokenPreparing || !tokenReady) && !tokenFailed) {
+      // Still preparing (not failed): wait. A FAILED preparation falls through to the retry-and-start path below.
       if (!tokenPromise) {
         prepareToken();
         toast('Retrying AI preparation…', 'info');
@@ -513,7 +563,7 @@
           startSession();
         }
       } catch (e) {
-        if (generation === tokenGeneration) toast(e.message || 'Could not prepare AI. Try again.', 'error');
+        if (generation === tokenGeneration) { toast((e.message || 'Could not prepare AI.') + ' Tap the orb to try again.', 'error'); flashError(); }
       } finally {
         pendingStart = false;
       }
@@ -1347,19 +1397,19 @@ if(this.n===2048){this.port.postMessage(this.b.slice(0));this.n=0}}return true}}
       { name: 'start_new_bill', description: 'Start a fresh blank New Bill. If the current bill has data, ask the user first and pass confirmed true.', parameters: O({ confirmed: B('User agreed to clear the current bill') }) },
       { name: 'reset_new_bill', description: 'Reset or clear New Bill EXACTLY like the app Reset button: reset customer, items, notes, service charge, invoice metadata and saved draft. Ask for confirmation if draft has data, then pass confirmed true. Do not simulate reset by emptying input fields.', parameters: O({ confirmed: B('User explicitly confirmed discarding the current New Bill') }) },
       { name: 'set_invoice_date', description: 'Set the date on the New Bill using YYYY-MM-DD.', parameters: O({date:S('YYYY-MM-DD date')},['date']) },
-      { name: 'set_customer', description: 'Set the customer name, address and/or mobile on the New Bill. Only pass what the user said.', parameters: O({ name: S('Customer name, in English letters'), address: S('Address, in English letters'), mobile: S('10 digit mobile number') }) },
-      { name: 'add_product', description: 'Add one item to the New Bill. Rate is required: ask if missing. You may write a short professional description if the user asks you to suggest or generate one.', parameters: O({ name: S('Product or service name'), quantity: S('Free text quantity, with or without a unit, as spoken: \"5\", \"2 liters\", \"5 boxes\", \"3 piece\". If the user does not mention quantity, omit it (defaults to \"1\"). If the user says no quantity or without quantity, pass an empty string \"\".'), rate: N('Price per unit in rupees'), description: S('Optional description'), serial: S('Optional serial number') }, ['name', 'rate']) },
-      { name: 'update_product', description: 'Change an item. Identify it by item_number (1-based) or name_match. Also use it to add or change a description.', parameters: O({ item_number: N('1-based position'), name_match: S('Part of the item name'), new_name: S('New name'), quantity: S('New quantity, free text with or without a unit, e.g. \"5\", \"2 liters\", \"3 piece\". To remove the quantity (leave it blank), pass an empty string \"\".'), rate: N('New rate'), description: S('New description'), serial: S('New serial') }) },
+      { name: 'set_customer', description: 'Set the customer name, address and/or mobile on the New Bill. Only pass what the user said.', parameters: O({ name: S('Customer name in English letters (write it in English even if spoken in Telugu or Hindi)'), address: S('Address in English letters (write it in English even if spoken in Telugu or Hindi)'), mobile: S('10 digit mobile number') }) },
+      { name: 'add_product', description: 'Add one item to the New Bill. Rate is required: ask if missing. You may write a short professional description if the user asks you to suggest or generate one.', parameters: O({ name: S('Product or service name, in English (translate it if spoken in Telugu or Hindi)'), quantity: S('Free text quantity, with or without a unit, as spoken: \"5\", \"2 liters\", \"5 boxes\", \"3 piece\". If the user does not mention quantity, omit it (defaults to \"1\"). If the user says no quantity or without quantity, pass an empty string \"\".'), rate: N('Price per unit in rupees'), description: S('Optional description, always in English'), serial: S('Optional serial number') }, ['name', 'rate']) },
+      { name: 'update_product', description: 'Change an item. Identify it by item_number (1-based) or name_match. Also use it to add or change a description.', parameters: O({ item_number: N('1-based position'), name_match: S('Part of the item name'), new_name: S('New name, in English (translate it if spoken in Telugu or Hindi)'), quantity: S('New quantity, free text with or without a unit, e.g. \"5\", \"2 liters\", \"3 piece\". To remove the quantity (leave it blank), pass an empty string \"\".'), rate: N('New rate'), description: S('New description, always in English'), serial: S('New serial') }) },
       { name: 'remove_product', description: 'Remove an item by item_number (1-based) or name_match.', parameters: O({ item_number: N('1-based position'), name_match: S('Part of the item name') }) },
       { name: 'set_service_charge', description: 'Turn service charge on (with amount) or off.', parameters: O({ enabled: B('false to turn off'), amount: N('Amount in rupees') }) },
-      { name: 'set_notes', description: 'Replace the invoice notes text.', parameters: O({ notes: S('Notes text') }, ['notes']) },
+      { name: 'set_notes', description: 'Replace the invoice notes text.', parameters: O({ notes: S('Notes text, always in English (translate it if spoken in Telugu or Hindi)') }, ['notes']) },
       { name: 'set_pdf_options', description: 'Turn PDF extras on or off. Only pass the ones the user mentioned.', parameters: O({ watermark: B('Watermark'), qr: B('Payment QR'), signature: B('Signature'), notes: B('Notes on PDF') }) },
       { name: 'preview_invoice', description: 'Open the invoice preview.', parameters: O() },
       { name: 'close_preview', description: 'Close the preview.', parameters: O() },
       { name: 'change_voice', description: 'Change the assistant voice. Call with NO voice_name first: it displays the voice options on screen and returns them. After the user chooses, call again with that exact voice_name to save it. The new voice works from the next time the assistant is opened, not in this conversation.', parameters: O({ voice_name: S('Exact name of the chosen voice from the options. Omit to only show the options.') }) },
       { name: 'generate_pdf', description: 'Make the PDF. New Bill: the replies enforce the steps, so call it and follow each reply. Pass confirmed true only after the user explicitly approved the invoice (it is fine to pass it on the first call if you already read the summary back and got a yes). Pass save true or false only after the user answered the database-save question. Previous Bill: call while the saved preview is open; no confirmation or save question.', parameters: O({ confirmed:B('User explicitly approved invoice details'), save: B('Explicit user choice: true save to Supabase, false generate without saving') }) },
       { name: 'pdf_action', description: 'After PDF is ready: download, optionally show invoice-download QR ONLY when qr_available is true, or close. Never offer QR after a new bill generated without saving.', parameters: O({ action: { type: 'STRING', enum: ['download', 'qr', 'close', 'close_qr', 'qr_done', 'share'] } }, ['action']) },
-      { name: 'bills_search', description: 'Search Previous Bills by invoice number, customer name or phone. Empty query clears the search.', parameters: O({ query: S('Search text') }, ['query']) },
+      { name: 'bills_search', description: 'Search Previous Bills by invoice number, customer name or phone. Empty query clears the search.', parameters: O({ query: S('Search text, in English (an English customer name or digits)') }, ['query']) },
       { name: 'bills_sort', description: 'Sort Previous Bills.', parameters: O({ sort: { type: 'STRING', enum: ['newest', 'oldest', 'amount_high', 'amount_low', 'name_az', 'name_za'] } }, ['sort']) },
       { name: 'bills_date_filter', description: 'Filter Previous Bills by date. Use a preset range, or range custom with a specific date ("bills on 14th November 2026") for one day, or with date and date_to ("bills from November 10 to November 15") for an inclusive range.', parameters: O({ range: { type: 'STRING', enum: ['any', 'today', 'yesterday', '7days', 'month', 'lastmonth', 'custom'] }, date: S('For range custom: the start (or only) day as YYYY-MM-DD'), date_to: S('Optional end day of a range as YYYY-MM-DD, inclusive') }, ['range']) },
       { name: 'bills_clear_filters', description: 'Clear search, sort and date filters on Previous Bills.', parameters: O() },
@@ -1368,7 +1418,7 @@ if(this.n===2048){this.port.postMessage(this.b.slice(0));this.n=0}}return true}}
       { name: 'reprint_bill', description: 'SHOW, VIEW, DISPLAY, OPEN, PRINT or REPRINT a particular saved Previous Bill (this is the same as the Print icon on the bill card): open its read-only preview and return its loaded customer, product and total details. Do NOT generate a PDF unless separately requested. Identify by invoice_no, position or customer; ask which if ambiguous.', parameters: O(BILL_REF) },
       { name: 'reminder_prepare', description: `Open the create reminder modal ONLY after checking remaining slots. If all ${REMINDER_LIMIT} slots are used, tell the user immediately; do not collect details.`, parameters: O() },
       { name: 'reminder_list', description: 'Open and read the reminders list.', parameters: O() },
-      { name: 'reminder_save', description: 'Create or edit a reminder. Ask for title, date and repeat preference. For edits identify by match_title or position. ALWAYS ask the user to confirm first, then pass confirmed true.', parameters: O({match_title:S('Existing reminder title to edit'),position:N('Existing reminder position'),title:S('Reminder title'),description:S('Description'),date:S(`YYYY-MM-DD, from tomorrow up to ${REMINDER_MAX_DAYS} days ahead for a new or changed date`),repeat:S('off, daily, weekly, monthly, yearly, or 1-365 days'),confirmed:B('User confirmed the exact details')}) },
+      { name: 'reminder_save', description: 'Create or edit a reminder. Ask for title, date and repeat preference. For edits identify by match_title or position. ALWAYS ask the user to confirm first, then pass confirmed true.', parameters: O({match_title:S('Existing reminder title to edit'),position:N('Existing reminder position'),title:S('Reminder title, always in English (translate it if spoken in Telugu or Hindi)'),description:S('Reminder description, always in English'),date:S(`YYYY-MM-DD, from tomorrow up to ${REMINDER_MAX_DAYS} days ahead for a new or changed date`),repeat:S('off, daily, weekly, monthly, yearly, or 1-365 days'),confirmed:B('User confirmed the exact details')}) },
       { name: 'reminder_action', description: 'Run a reminder button. Only these actions exist. DONE = only while a reminder is due or overdue. Repeating: this time is handled, it stays Active and moves to its next date. One-time: Done finishes it automatically. FINISH = only while NOT due: stop for good, it becomes Finished and only Delete remains. PAUSE and RESUME = repeating reminders only. DELETE = Finished reminders only. Buttons per state: Active repeating not due = pause, finish. Active repeating due or overdue = pause, done. Active one-time not due = finish. Active one-time due or overdue = done (finishes it). Paused = resume, finish. Finished = delete. Check available_actions first. Ask the user to confirm before done, finish or delete, then pass confirmed true.', parameters: O({match_title:S('Reminder title'),position:N('Reminder position'),action:{type:'STRING',enum:['pause','resume','done','finish','delete']},confirmed:B('User confirmed the action in their latest turn')},['action']) },
       { name:'set_theme',description:'Set the app appearance to light, dark, or system device default.',parameters:O({mode:{type:'STRING',enum:['light','dark','system']}},['mode']) },
       { name:'end_conversation',description:'End the voice chat when user says goodbye, bye, bye-bye, end chat, stop listening, or close assistant.',parameters:O() }
@@ -1387,8 +1437,8 @@ if(this.n===2048){this.port.postMessage(this.b.slice(0));this.n=0}}return true}}
       `You are the voice-only assistant inside ${co} Billing.`,
       '',
       '## Voice and language',
-      '- Reply in the language the user speaks: English, Hindi or Telugu. Keep replies short and clear. Say the goodbye and any "still loading" message in that language too.',
-      '- Write customer names, addresses and product names in English letters (transliterate Telugu or Hindi), because invoices are printed in English.',
+      '- You listen and speak ONLY Telugu, English and Hindi. Reply in the language the user speaks, and follow them if they switch language at any time. If the user speaks any other language, politely say, in simple English, that you can only listen and talk in Telugu, English and Hindi, and ask them to continue in one of these. Keep replies short and clear. Say the goodbye and any "still loading" message in the user\'s language.',
+      '- EVERYTHING shown on screen or saved must be in English, whichever language the user speaks: customer name, address, product or service names, item descriptions, invoice notes, reminder titles and reminder descriptions. Translate the meaning into natural English (a Telugu or Hindi product name or reminder text becomes its English meaning). People names, place names and addresses cannot be translated, so write them in English letters. Use the English form when searching or matching saved items too. Speak to the user in their own language, but always pass English text to the tools, and when you confirm details aloud read back the English text you will save.',
       '- Say amounts naturally, read invoice numbers digit by digit, summarize long lists and offer the rest. Never say tool names, field names or IDs. Ask one question at a time. Before a slow action (generating a PDF, loading bills) say a very short "one moment".',
       '- If speech is unclear, ask the user to repeat. Never guess amounts, quantities, mobile numbers, dates or invoice numbers.',
       '',
@@ -1514,8 +1564,10 @@ if(this.n===2048){this.port.postMessage(this.b.slice(0));this.n=0}}return true}}
         if (!settled) { settled = true; reject(new Error('closed ' + ev.code + ' ' + (ev.reason || ''))); return; }
         if (live() && active) {
           console.warn('[voice] closed', ev.code, ev.reason);
-          stopSession('ended');
+          const abnormal = ev.code !== 1000 && ev.code !== 1001;   // anything else means the connection dropped or was rejected
+          stopSession(abnormal ? 'error' : 'ended');
           if (ev.reason) toast('Voice: ' + ev.reason.slice(0, 120), 'warning');
+          else if (abnormal) toast('Voice connection was lost. Tap the orb to start again.', 'warning');
         }
       };
     });
@@ -1623,7 +1675,7 @@ if(this.n===2048){this.port.postMessage(this.b.slice(0));this.n=0}}return true}}
   async function startSession() {
     if (active || starting) return;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.isSecureContext) {
-      setStatus('error');
+      flashError();
       toast('Microphone works only on HTTPS or localhost.', 'error');
       return;
     }
@@ -1634,7 +1686,7 @@ if(this.n===2048){this.port.postMessage(this.b.slice(0));this.n=0}}return true}}
     const isCurrent = () => sid === sessionId;
     starting = true;
     holdScreenAwake();
-    muted = false;
+    muted = false; autoMuted = false; hiddenAt = 0;
     uText = aText = ''; newUserTurn = true; turnDone = true;
     setStatus('connecting');
 
@@ -1654,7 +1706,7 @@ if(this.n===2048){this.port.postMessage(this.b.slice(0));this.n=0}}return true}}
       cleanupAudio();
       starting = false;
       releaseScreenAwake();
-      setStatus('error');
+      flashError();
       toast((e && e.name === 'NotAllowedError') ? 'Mic access denied. Enable it in permission settings.' : 'Could not open the microphone', 'error');
       return;
     }
@@ -1702,11 +1754,13 @@ if(this.n===2048){this.port.postMessage(this.b.slice(0));this.n=0}}return true}}
     starting = false;
     cleanupAudio();
     releaseScreenAwake();
-    setStatus('error');
+    flashError();
     paintTokenState();
     const why = lastErr && lastErr.message ? lastErr.message : 'unknown';
     dbg('could not connect: ' + why);
-    toast(tokenError ? ('Voice assistant unavailable: ' + why) : 'Voice AI could not connect. Check the session service and model names.', 'error');
+    toast(tokenError ? ('Voice assistant unavailable: ' + why + ' Tap the orb to try again.') : 'Could not connect to the voice AI. Tap the orb to try again.', 'error');
+    // The failed attempt used up its one-time token: prepare a fresh one now so the next tap starts quickly.
+    if (!tokenError) prepareToken();
   }
 
   function cleanupAudio() {
@@ -1730,12 +1784,12 @@ if(this.n===2048){this.port.postMessage(this.b.slice(0));this.n=0}}return true}}
     clearInterval(idleMonitor);idleMonitor=null;
     
     const sock = ws;
-    ws = null; ready = false; active = false; starting = false; muted = false;
+    ws = null; ready = false; active = false; starting = false; muted = false; autoMuted = false; hiddenAt = 0;
     if (sock) { sock.onmessage = null; try { sock.close(1000); } catch (e) { /* ignore */ } }
     cleanupAudio();
     releaseScreenAwake();
     if (ui.sheet) {
-      setStatus(finalStatus || 'idle');
+      if (finalStatus === 'error') flashError(); else setStatus(finalStatus || 'idle');
       paintTokenState();
     }
     // A cancelled WebSocket attempt has already consumed its token. Prepare a fresh one
