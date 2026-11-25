@@ -4,7 +4,7 @@
    Safe Activation Handoff
    ========================================================= */
 
-const CACHE_VERSION = "v2.0.5";
+const CACHE_VERSION = "v2.0.6";
 const CACHE_PREFIX = "j.ali-billing-";
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
 const CLAIM_DELAY_MS = 2000;
